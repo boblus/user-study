@@ -1,0 +1,992 @@
+/* 全局样式 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    line-height: 1.6;
+    color: #333;
+    background-color: #f5f5f5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-top: 2rem;
+}
+
+h1 {
+    margin-bottom: 1.5rem;
+    color: #2c3e50;
+}
+
+h2 {
+    margin-bottom: 1rem;
+    color: #34495e;
+}
+
+/* Header actions (back to login buttons) */
+.header-actions {
+    margin-bottom: 1rem;
+    text-align: right;
+}
+
+.task-header-top {
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #ecf0f1;
+}
+
+/* 视图切换 */
+.view {
+    min-height: 100vh;
+    padding: 1rem;
+}
+
+/* 按钮样式 */
+.btn {
+    padding: 0.75rem 1.5rem;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+    margin: 0.5rem;
+    border: 2.5px solid #000000;
+    background-color: transparent;
+    color: #000000;
+}
+
+.btn-primary {
+    background-color: transparent;
+    color: #000000;
+    border-color: #000000;
+}
+
+.btn-primary:hover {
+    background-color: #f3f4f6;
+    border-color: #000000;
+}
+
+.btn-secondary {
+    background-color: transparent;
+    color: #000000;
+    border-color: #000000;
+}
+
+.btn-secondary:hover {
+    background-color: #f3f4f6;
+    border-color: #000000;
+}
+
+.btn:disabled {
+    background-color: #f3f4f6;
+    color: #9ca3af;
+    border-color: #d1d5db;
+    cursor: not-allowed;
+}
+
+/* Pause / Resume 按钮区分样式，保证大小一致 */
+#pause-writing-btn,
+#resume-writing-btn {
+    width: 120px;
+    min-width: 120px;
+    text-align: center;
+    border-width: 2.5px;
+    border-style: solid;
+    box-sizing: border-box;
+}
+
+#pause-writing-btn {
+    background-color: transparent;
+    color: #000000;
+    border-color: #000000;
+}
+
+#pause-writing-btn:hover {
+    background-color: #f3f4f6;
+}
+
+#resume-writing-btn {
+    background-color: #000000;
+    color: #ffffff;
+    border-color: #000000;
+}
+
+#resume-writing-btn:hover {
+    background-color: #111827;
+    border-color: #111827;
+}
+    border-radius: 4px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    margin: 0.5rem;
+}
+
+
+
+/* 登录表单 */
+.login-form {
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+.login-form label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.login-input-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: stretch;
+    margin-bottom: 1rem;
+}
+
+.login-form input {
+    flex: 0 0 200px;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    box-sizing: border-box;
+}
+
+.login-form .btn {
+    flex: 0 0 auto;
+    margin: 0;
+    white-space: nowrap;
+}
+
+.error-message {
+    color: #e74c3c;
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    background-color: #fadbd8;
+    border-radius: 4px;
+}
+
+.success-message {
+    color: #27ae60;
+    font-size: 1.2rem;
+    margin: 1rem 0;
+}
+
+/* 任务列表 */
+.tasks-list {
+    margin: 2rem 0;
+}
+
+.task-item {
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border: 2px solid #ecf0f1;
+    border-radius: 4px;
+    background-color: #fafafa;
+}
+
+.task-item.active {
+    border-color: #3498db;
+    background-color: #ebf5fb;
+}
+
+.task-item.locked {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.task-item h3 {
+    margin-bottom: 0.5rem;
+}
+
+.task-meta {
+    display: flex;
+    gap: 1rem;
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+    color: #7f8c8d;
+    align-items: center;
+}
+
+.task-status {
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.task-status.not-started {
+    background-color: #ecf0f1;
+    color: #7f8c8d;
+}
+
+.task-status.in-progress {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.task-status.submitted {
+    background-color: #d1ecf1;
+    color: #0c5460;
+}
+
+.task-status.questionnaire-done {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.actions {
+    margin-top: 2rem;
+    text-align: center;
+}
+
+/* 任务页面布局 */
+.task-container {
+    display: flex;
+    height: calc(100vh - 2rem);
+    gap: 1rem;
+    padding: 1rem;
+}
+
+.task-left {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 1rem;
+}
+
+.task-right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0 1rem;
+}
+
+.task-header {
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #ecf0f1;
+}
+
+.task-instructions-container {
+    margin-bottom: 1rem;
+    background-color: #f8f9fa;
+    border-left: 4px solid #3498db;
+    border-radius: 4px;
+}
+
+.task-instructions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    font-weight: 600;
+    color: #2c3e50;
+    user-select: none;
+}
+
+.task-instructions-header:hover {
+    background-color: #e9ecef;
+}
+
+.task-instructions-header .toggle-icon {
+    transition: transform 0.2s ease;
+    font-size: 0.8rem;
+}
+
+.task-instructions-container.collapsed .toggle-icon {
+    transform: rotate(-90deg);
+}
+
+.task-instructions-container.collapsed .task-instructions {
+    display: none;
+}
+
+.task-instructions {
+    padding: 0 1rem 1rem 1rem;
+    font-size: 0.9rem;
+}
+
+.task-instructions h3 {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+    color: #2c3e50;
+    font-size: 1rem;
+}
+
+.task-instructions h4 {
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+    color: #34495e;
+    font-size: 0.95rem;
+}
+
+.task-instructions ul {
+    margin-left: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.task-instructions li {
+    margin-bottom: 0.25rem;
+}
+
+#editor-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.save-status {
+    font-size: 0.9rem;
+    color: #27ae60;
+    margin-top: 0.5rem;
+}
+
+.save-status.saving {
+    color: #f39c12;
+}
+
+.pdf-viewer {
+    flex: 1;
+    overflow: hidden;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.pdf-viewer iframe {
+    width: 100%;
+    height: 100%;
+}
+
+.writing-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+#review-editor {
+    flex: 1;
+    width: 100%;
+    padding: 1rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-family: inherit;
+    resize: none;
+    margin-top: 1rem;
+}
+
+.editor-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+    color: #7f8c8d;
+}
+
+.warning {
+    color: #e74c3c;
+}
+
+.task-actions {
+    margin-top: 1rem;
+    text-align: right;
+}
+
+.info-text {
+    padding: 0.75rem;
+    background-color: #e8f4f8;
+    border-left: 4px solid #3498db;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+}
+
+/* 协作控制 */
+#collab-controls {
+    margin-bottom: 0;
+}
+
+#collab-input-area {
+    margin-bottom: 0.75rem;
+}
+
+.collab-input-group {
+    margin-bottom: 0;
+}
+
+.collab-input-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: #333;
+}
+
+.collab-input-group textarea {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-family: inherit;
+    resize: vertical;
+    box-sizing: border-box;
+    min-height: 60px;
+}
+
+.collab-input-group textarea:focus {
+    outline: none;
+    border-color: #000000;
+}
+
+.collab-input-inline {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.collab-input-inline label {
+    display: inline;
+    margin-bottom: 0;
+    white-space: nowrap;
+}
+
+.collab-input-inline input[type="text"] {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-family: inherit;
+    box-sizing: border-box;
+}
+
+.collab-input-inline input[type="text"]:focus {
+    outline: none;
+    border-color: #000000;
+}
+
+#collab-generated-area {
+    margin-top: 0.75rem;
+    padding: 1rem;
+    background-color: #f0f7ff;
+    border-left: 4px solid #3498db;
+    border-radius: 4px;
+}
+
+#collab-generated-area .collab-input-group {
+    margin-left: 0;
+    padding-left: 0;
+}
+
+#collab-generated-area label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: #333;
+}
+
+/* Multiple candidates container - side by side layout */
+.candidates-container {
+    display: flex;
+    gap: 1rem;
+}
+
+.candidate {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.candidate label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: #333;
+}
+
+.candidate-text {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-family: inherit;
+    resize: none;
+    box-sizing: border-box;
+    height: 180px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.candidate-text:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
+.candidate-actions {
+    display: flex;
+    justify-content: flex-start;
+    margin-top: 0.5rem;
+}
+
+.candidate-actions .select-candidate-btn {
+    width: 100px;
+}
+
+/* Selected candidate stage */
+.selected-candidate {
+    margin-bottom: 0.5rem;
+}
+
+.selected-candidate label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: #333;
+}
+
+#selected-candidate-text {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-family: inherit;
+    resize: none;
+    box-sizing: border-box;
+    height: 180px;
+    overflow-y: auto;
+}
+
+#selected-candidate-text:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
+#accept-selected-btn,
+#reject-selected-btn {
+    width: 100px;
+}
+
+/* Legacy single text area (kept for compatibility) */
+#collab-generated-text {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-family: inherit;
+    resize: none;
+    box-sizing: border-box;
+    height: 180px;
+    overflow-y: auto;
+}
+
+#collab-generated-text:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
+.collab-generated-actions {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+#reject-all-btn {
+    width: 120px;
+}
+
+/* Judgment history container (collapsible) */
+.judgment-history-container {
+    margin-bottom: 0.75rem;
+    background-color: #f8f9fa;
+    border-left: 4px solid #9b59b6;
+    border-radius: 4px;
+}
+
+.judgment-history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    font-weight: 600;
+    color: #2c3e50;
+    user-select: none;
+}
+
+.judgment-history-header:hover {
+    background-color: #e9ecef;
+}
+
+.judgment-history-header .toggle-icon {
+    transition: transform 0.2s ease;
+    font-size: 0.8rem;
+}
+
+.judgment-history-container.collapsed .toggle-icon {
+    transform: rotate(-90deg);
+}
+
+.judgment-history-container.collapsed .judgment-history-content {
+    display: none;
+}
+
+.judgment-history-content {
+    padding: 0 1rem 1rem 1rem;
+}
+
+.judgment-history-content .history-item {
+    margin-bottom: 0.75rem;
+    padding: 0.5rem;
+    background-color: #fff;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.judgment-history-content .history-item-label {
+    font-weight: 500;
+    color: #666;
+    margin-bottom: 0.25rem;
+}
+
+.judgment-history-content .history-item-text {
+    color: #333;
+    white-space: pre-wrap;
+}
+
+.judgment-history-content .history-expansion {
+    background-color: #f0f7ff;
+    border-left: 3px solid #3498db;
+}
+
+.judgment-history-content .history-feedback {
+    background-color: #fff8f0;
+    border-left: 3px solid #e74c3c;
+}
+
+.judgment-history-content .history-final {
+    background-color: #f0fff4;
+    border-left: 3px solid #27ae60;
+}
+
+/* Feedback area styles (used for dynamically created elements) */
+.feedback-area {
+    margin-top: 1rem;
+    padding: 1rem;
+    background-color: #fff8f0;
+    border-left: 4px solid #e74c3c;
+    border-radius: 4px;
+    position: relative;
+}
+
+.feedback-area .collab-input-group {
+    margin-left: 0;
+    padding-left: 0;
+}
+
+.feedback-area .feedback-input {
+    width: 100%;
+    height: 60px;
+    resize: none;
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 0.95rem;
+    box-sizing: border-box;
+}
+
+/* New expansion area styles (used for dynamically created elements) */
+.new-expansion-area {
+    margin-top: 1rem;
+    padding: 1rem;
+    background-color: #f0f7ff;
+    border-left: 4px solid #3498db;
+    border-radius: 4px;
+}
+
+.new-expansion-area label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: #333;
+}
+
+.new-expansion-area textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-family: inherit;
+    resize: none;
+    box-sizing: border-box;
+    height: 180px;
+    overflow-y: auto;
+}
+
+.new-expansion-area textarea:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
+.new-expansion-actions {
+    display: flex;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.new-expansion-actions .btn {
+    width: 100px;
+    min-width: 100px;
+    text-align: center;
+    box-sizing: border-box;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.close-feedback-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background-color: transparent;
+    color: #666;
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    line-height: 1;
+    padding: 0;
+}
+
+.close-feedback-btn:hover {
+    background-color: rgba(0, 0, 0, 0.1);
+    color: #333;
+}
+
+#reject-feedback-input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-family: inherit;
+    resize: none;
+    box-sizing: border-box;
+    height: 60px;
+    overflow-y: auto;
+}
+
+#reject-feedback-input:focus {
+    outline: none;
+    border-color: #e74c3c;
+}
+
+.reject-actions {
+    display: flex;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+
+/* Accept / Reject 按钮统一宽度 */
+#accept-generated-btn,
+#reject-generated-btn {
+    width: 100px;
+    min-width: 100px;
+    text-align: center;
+    box-sizing: border-box;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Submit 按钮与 Pause/Resume 按钮统一宽度 */
+#submit-review-btn {
+    width: 120px;
+    min-width: 120px;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.collab-round {
+    margin: 1rem 0;
+    padding: 1rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: #fafafa;
+}
+
+.collab-round-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.round-number {
+    font-weight: 500;
+    color: #2c3e50;
+}
+
+.round-status {
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.85rem;
+}
+
+.round-status.accepted {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.round-status.rejected {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.round-status.pending {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.collab-round-content {
+    margin: 0.5rem 0;
+    padding: 0.75rem;
+    background-color: white;
+    border-radius: 4px;
+    white-space: pre-wrap;
+}
+
+.round-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.round-feedback {
+    margin-top: 0.5rem;
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+/* 问卷样式 */
+.question {
+    margin: 2rem 0;
+    padding: 1.5rem;
+    background-color: #fafafa;
+    border-radius: 4px;
+}
+
+.questionnaire-actions {
+    margin-top: 2rem;
+    text-align: right;
+}
+
+.question label {
+    display: block;
+    margin-bottom: 1rem;
+    font-weight: 500;
+}
+
+.likert-scale {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.likert-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    min-width: 80px;
+}
+
+.likert-item input[type="radio"] {
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+    width: 20px;
+    height: 20px;
+}
+
+.likert-label {
+    font-size: 0.85rem;
+    color: #7f8c8d;
+    text-align: center;
+    word-wrap: break-word;
+    line-height: 1.2;
+    white-space: normal;
+}
+
+.likert-item:first-child .likert-label,
+.likert-item:last-child .likert-label {
+    white-space: nowrap;
+}
+
+.paper-info {
+    margin: 2rem 0;
+    padding: 1rem;
+    background-color: #fafafa;
+    border-radius: 4px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .task-container {
+        flex-direction: column;
+        height: auto;
+    }
+
+    .task-left {
+        min-height: 400px;
+    }
+
+    .likert-scale {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .likert-scale input[type="radio"] {
+        margin: 0.25rem 0;
+    }
+}
+

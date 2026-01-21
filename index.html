@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peer Review Generation Study</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+    <!-- Login view -->
+    <div id="view-login" class="view">
+        <div class="container">
+            <h1>User study</h1>
+            <div class="login-form">
+                <label for="participant-token">Participant ID:</label>
+                <div class="login-input-group">
+                    <input type="text" id="participant-token">
+                    <button id="login-btn" class="btn btn-primary">Login</button>
+                </div>
+                <div id="login-error" class="error-message" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Overview view -->
+    <div id="view-overview" class="view" style="display: none;">
+        <div class="container">
+            <div class="header-actions">
+                <button id="back-to-login-overview" class="btn btn-secondary">Back to login</button>
+            </div>
+            <h1>Task overview</h1>
+            <div id="tasks-list" class="tasks-list"></div>
+            <div class="actions">
+                <button id="continue-btn" class="btn btn-primary">Continue</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Instructions view -->
+    <div id="view-instructions" class="view" style="display: none;">
+        <div class="container">
+            <div class="header-actions">
+                <button id="back-to-login-instructions" class="btn btn-secondary">Back to login</button>
+            </div>
+            <h1>Task instructions</h1>
+            <div id="instructions-content"></div>
+            <div class="actions">
+                <button id="start-task-btn" class="btn btn-primary">Start task</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task view -->
+    <div id="view-task" class="view" style="display: none;">
+        <div class="task-container">
+            <div class="task-header-top">
+                <button id="back-to-login-task" class="btn btn-secondary">Back to login</button>
+            </div>
+            <div class="task-left">
+                <div class="task-header">
+                    <h2 id="task-title"></h2>
+                </div>
+                <div class="pdf-viewer">
+                    <iframe id="pdf-iframe" src="" frameborder="0"></iframe>
+                </div>
+            </div>
+            <div class="task-right">
+                <div class="task-instructions-container collapsed">
+                    <div class="task-instructions-header" id="instructions-toggle">
+                        <span>Task instructions</span>
+                        <span class="toggle-icon">▼</span>
+                    </div>
+                    <div id="task-instructions" class="task-instructions"></div>
+                </div>
+                <div class="writing-area">
+                    <div id="scratch-controls" style="display: none;">
+                        <button id="start-writing-btn" class="btn btn-primary">Start writing</button>
+                    </div>
+                    <div id="collab-controls" style="display: none;">
+                        <button id="start-writing-collab-btn" class="btn btn-primary">Start writing</button>
+                        <!-- Container for judgment history (completed rounds) - placed above current interaction -->
+                        <div id="judgment-history-container"></div>
+                        <div id="collab-input-area" style="display: none;">
+                            <div class="collab-input-group collab-input-inline">
+                                <label for="judgment-input" id="judgment-label">Judgment 1:</label>
+                                <input type="text" id="judgment-input">
+                                <button id="generate-btn" class="btn btn-secondary">Generate</button>
+                            </div>
+                        </div>
+                        <div id="collab-generated-area" style="display: none;">
+                            <!-- Stage 1: Select from candidates -->
+                            <div id="candidates-selection-stage">
+                                <div class="candidates-container">
+                                    <div class="candidate" id="candidate-0">
+                                        <label>Candidate 1:</label>
+                                        <textarea class="candidate-text" rows="4" readonly></textarea>
+                                        <div class="candidate-actions">
+                                            <button class="btn btn-primary select-candidate-btn" data-index="0">Select</button>
+                                        </div>
+                                    </div>
+                                    <div class="candidate" id="candidate-1">
+                                        <label>Candidate 2:</label>
+                                        <textarea class="candidate-text" rows="4" readonly></textarea>
+                                        <div class="candidate-actions">
+                                            <button class="btn btn-primary select-candidate-btn" data-index="1">Select</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="collab-generated-actions">
+                                    <button id="regenerate-btn" class="btn btn-secondary">Regenerate</button>
+                                </div>
+                            </div>
+                            <!-- Stage 2: Confirm selected candidate -->
+                            <div id="candidate-confirm-stage" style="display: none;">
+                                <div class="selected-candidate">
+                                    <label>Selected expansion:</label>
+                                    <textarea id="selected-candidate-text" rows="4"></textarea>
+                                </div>
+                                <div class="collab-generated-actions">
+                                    <button id="accept-selected-btn" class="btn btn-primary">Accept</button>
+                                    <button id="reject-selected-btn" class="btn btn-secondary">Reject</button>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Container for dynamically added feedback and expansion rounds -->
+                        <div id="collab-rounds-container"></div>
+                    </div>
+                    <div id="editor-container">
+                        <textarea id="review-editor"></textarea>
+                    </div>
+                </div>
+                <div class="task-actions">
+                    <button id="pause-writing-btn" class="btn btn-secondary" style="display: none;">Pause</button>
+                    <button id="resume-writing-btn" class="btn btn-secondary" style="display: none;">Resume</button>
+                    <button id="submit-review-btn" class="btn btn-primary">Submit</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Questionnaire view -->
+    <div id="view-questionnaire" class="view" style="display: none;">
+        <div class="container">
+            <div class="header-actions">
+                <button id="back-to-login-questionnaire" class="btn btn-secondary">Back to login</button>
+            </div>
+            <h1>Post-task questionnaire</h1>
+            <p>Please answer the following questions based on the task you just completed:</p>
+            <form id="questionnaire-form">
+                <div class="question" id="question-effort">
+                    <label><strong>Effort:</strong> How much effort did you need to complete this task?</label>
+                    <div class="likert-scale">
+                        <div class="likert-item">
+                            <input type="radio" name="effort" value="1">
+                            <span class="likert-label">1<br>Very low</span>
+                        </div>
+                        <div class="likert-item">
+                            <input type="radio" name="effort" value="2">
+                            <span class="likert-label">2</span>
+                        </div>
+                        <div class="likert-item">
+                            <input type="radio" name="effort" value="3">
+                            <span class="likert-label">3</span>
+                        </div>
+                        <div class="likert-item">
+                            <input type="radio" name="effort" value="4">
+                            <span class="likert-label">4<br>Neutral</span>
+                        </div>
+                        <div class="likert-item">
+                            <input type="radio" name="effort" value="5">
+                            <span class="likert-label">5</span>
+                        </div>
+                        <div class="likert-item">
+                            <input type="radio" name="effort" value="6">
+                            <span class="likert-label">6</span>
+                        </div>
+                        <div class="likert-item">
+                            <input type="radio" name="effort" value="7">
+                            <span class="likert-label">7<br>Very high</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="question" id="question-postedit-effort" style="display: none;">
+                    <label><strong>Post-edit effort:</strong> How much effort did you need to rewrite or correct the generated review before submitting?</label>
+                    <div class="likert-scale">
+                        <div class="likert-item">
+                            <input type="radio" name="postedit_effort" value="1">
+                            <span class="likert-label">1<br>Very low</span>
+                        </div>
+                        <div class="likert-item">
+                            <input type="radio" name="postedit_effort" value="2">
+                            <span class="likert-label">2</span>
+                        </div>
+                        <div class="likert-item">
+                            <input type="radio" name="postedit_effort" value="3">
+                            <span class="likert-label">3</span>
+                        </div>
+                        <div class="likert-item">
+                            <input type="radio" name="postedit_effort" value="4">
+                            <span class="likert-label">4<br>Neutral</span>
+                        </div>
+                        <div class="likert-item">
+                            <input type="radio" name="postedit_effort" value="5">
+                            <span class="likert-label">5</span>
+                        </div>
+                        <div class="likert-item">
+                            <input type="radio" name="postedit_effort" value="6">
+                            <span class="likert-label">6</span>
+                        </div>
+                        <div class="likert-item">
+                            <input type="radio" name="postedit_effort" value="7">
+                            <span class="likert-label">7<br>Very high</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="question">
+                    <label><strong>Confidence:</strong> Are you confident in the final review you submitted?</label>
+                    <div class="likert-scale">
+                        <div class="likert-item">
+                            <input type="radio" name="confidence" value="1" required>
+                            <span class="likert-label">1<br>Not confident at all</span>
+                        </div>
+                        <div class="likert-item">
+                            <input type="radio" name="confidence" value="2" required>
+                            <span class="likert-label">2</span>
+                        </div>
+                        <div class="likert-item">
+                            <input type="radio" name="confidence" value="3" required>
+                            <span class="likert-label">3</span>
+                        </div>
+                        <div class="likert-item">
+                            <input type="radio" name="confidence" value="4" required>
+                            <span class="likert-label">4<br>Neutral</span>
+                        </div>
+                        <div class="likert-item">
+                            <input type="radio" name="confidence" value="5" required>
+                            <span class="likert-label">5</span>
+                        </div>
+                        <div class="likert-item">
+                            <input type="radio" name="confidence" value="6" required>
+                            <span class="likert-label">6</span>
+                        </div>
+                        <div class="likert-item">
+                            <input type="radio" name="confidence" value="7" required>
+                            <span class="likert-label">7<br>Very confident</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="question">
+                    <label><strong>Satisfaction:</strong> Are you satisfied with the final review?</label>
+                    <div class="likert-scale">
+                        <div class="likert-item">
+                            <input type="radio" name="satisfaction" value="1" required>
+                            <span class="likert-label">1<br>Very dissatisfied</span>
+                        </div>
+                        <div class="likert-item">
+                            <input type="radio" name="satisfaction" value="2" required>
+                            <span class="likert-label">2</span>
+                        </div>
+                        <div class="likert-item">
+                            <input type="radio" name="satisfaction" value="3" required>
+                            <span class="likert-label">3</span>
+                        </div>
+                        <div class="likert-item">
+                            <input type="radio" name="satisfaction" value="4" required>
+                            <span class="likert-label">4<br>Neutral</span>
+                        </div>
+                        <div class="likert-item">
+                            <input type="radio" name="satisfaction" value="5" required>
+                            <span class="likert-label">5</span>
+                        </div>
+                        <div class="likert-item">
+                            <input type="radio" name="satisfaction" value="6" required>
+                            <span class="likert-label">6</span>
+                        </div>
+                        <div class="likert-item">
+                            <input type="radio" name="satisfaction" value="7" required>
+                            <span class="likert-label">7<br>Very satisfied</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="questionnaire-actions">
+                    <button type="submit" class="btn btn-primary">Submit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Complete view -->
+    <div id="view-complete" class="view" style="display: none;">
+        <div class="container">
+            <div class="header-actions">
+                <button id="back-to-login-complete" class="btn btn-secondary">Back to login</button>
+            </div>
+            <h1>Task complete</h1>
+            <p class="success-message">You have completed all tasks!</p>
+            <p>A final overall preference questionnaire will be sent separately.</p>
+        </div>
+    </div>
+
+    <!-- 加载脚本 -->
+    <script src="assets/config.js"></script>
+    <script src="assets/csv.js"></script>
+    <script src="assets/collab_simulator.js"></script>
+    <script src="assets/backend.js"></script>
+    <script src="assets/app.js"></script>
+</body>
+</html>
+

@@ -1,0 +1,9 @@
+participant_id,task_1,task_2,task_1_paper,task_2_paper
+p01a,e2e,collab,paper_1,paper_2
+p02b,collab,e2e,paper_1,paper_2
+p03c,e2e,collab,paper_1,paper_2
+p04d,collab,e2e,paper_1,paper_2
+p05e,e2e,collab,paper_3,paper_4
+p06f,collab,e2e,paper_3,paper_4
+p07g,e2e,collab,paper_3,paper_4
+p08h,collab,e2e,paper_3,paper_4
