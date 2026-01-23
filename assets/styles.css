@@ -336,13 +336,23 @@ h2 {
     font-size: 0.95rem;
 }
 
-.task-instructions ul {
-    margin-left: 1.5rem;
-    margin-bottom: 0.5rem;
+/* Global list item spacing */
+ul li,
+ol li {
+    margin-bottom: 1rem;
+    line-height: 1.7;
 }
 
-.task-instructions li {
-    margin-bottom: 0.25rem;
+.task-instructions ul,
+.task-instructions ol {
+    margin-left: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+#instructions-content ul,
+#instructions-content ol {
+    margin-left: 1.5rem;
+    margin-bottom: 1rem;
 }
 
 #editor-container {
@@ -415,6 +425,60 @@ h2 {
     border-left: 4px solid #3498db;
     border-radius: 4px;
     margin-bottom: 1rem;
+}
+
+/* E2E 模式控制 */
+#e2e-controls {
+    margin-bottom: 1rem;
+}
+
+#e2e-sketch-area {
+    background-color: #fff8e6;
+    border-left: 4px solid #f39c12;
+    border-radius: 4px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.sketch-input-group {
+    margin-bottom: 1rem;
+}
+
+.sketch-input-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 1rem;
+    color: #333;
+}
+
+.sketch-hint {
+    font-size: 0.9rem;
+    color: #666;
+    margin-bottom: 0.75rem;
+    line-height: 1.5;
+}
+
+#key-point-sketch {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-family: inherit;
+    resize: none;
+    box-sizing: border-box;
+    height: 15rem;
+}
+
+#key-point-sketch:focus {
+    outline: none;
+    border-color: #f39c12;
+}
+
+#key-point-sketch[readonly] {
+    background-color: #f9f9f9;
+    color: #555;
+    cursor: default;
 }
 
 /* 协作控制 */
@@ -586,6 +650,12 @@ h2 {
 #accept-selected-btn,
 #reject-selected-btn {
     width: 100px;
+    min-width: 100px;
+    text-align: center;
+    box-sizing: border-box;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
 }
 
 /* Legacy single text area (kept for compatibility) */

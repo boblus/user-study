@@ -141,6 +141,7 @@ function bindEventListeners() {
     // Task page
     document.getElementById('start-writing-btn').addEventListener('click', handleStartWriting);
     document.getElementById('start-writing-collab-btn').addEventListener('click', handleStartWriting);
+    document.getElementById('start-writing-e2e-btn').addEventListener('click', handleStartWritingE2E);
     document.getElementById('generate-btn').addEventListener('click', handleGenerate);
     
     // Allow Enter key in judgment input to trigger generate
@@ -392,6 +393,65 @@ function getParadigmName(paradigm) {
 }
 
 /**
+ * Get instructions HTML based on paradigm
+ * @param {string} paradigm - 'scratch', 'e2e', or 'collab'
+ * @param {boolean} isFullPage - true for instructions page, false for task sidebar
+ */
+function getInstructionsHTML(paradigm, isFullPage) {
+    const headingTag = isFullPage ? 'h3' : 'h4';
+    
+    if (paradigm === 'e2e') {
+        return `
+            <p>In this task, you will produce a review by <strong>post-editing an LLM-generated draft</strong>. Please read the instructions carefully.</p>
+            <br>
+            <${headingTag}>1. Read the paper first</${headingTag}>
+            <p>Please read the assigned paper carefully before starting the timed writing phase.</p>
+            <br>
+            <${headingTag}>2. Sketch your intent before seeing the draft</${headingTag}>
+            <p>Before we show you the LLM-generated draft, please write a brief list of the key points you intend to raise in your review. This sketch should include the main strengths and weaknesses you want to mention. <strong>This step is required</strong> and helps us capture your initial intent.</p>
+            <br>
+            <${headingTag}>3. Start the timed writing phase</${headingTag}>
+            <p>Once you have finished reading and completed your key-point sketch, click <strong>Start writing</strong>. Timing begins at this moment. Please try to reserve at least <strong>120 minutes</strong> of uninterrupted time for writing, since we would like to record the completion time. If you need to step away, please click <strong>Pause</strong>.</p>
+            <br>
+            <${headingTag}>4. Edit the LLM-generated draft to match your intent</${headingTag}>
+            <p>After you click Start writing, we will display an LLM-generated draft review. Your task is to revise this draft so that the final review reflects your intended points and judgments. You may freely delete incorrect or irrelevant content, add missing points, rewrite sentences, and reorganize the text.</p>
+            <br>
+            <${headingTag}>5. Output</${headingTag}>
+            <p>Please output only the <strong>Strengths</strong>, <strong>Weaknesses</strong>, and <strong>Comments/Suggestions/Typos</strong> (if there are any) sections. You do <strong>not</strong> need to write a paper summary or provide review scores.</p>
+            <br>
+            <${headingTag}>6. Review guidelines</${headingTag}>
+            <ul>
+                <li><strong>Summary of Strengths:</strong> What are the major reasons to publish this paper at a selective *ACL venue? These could include novel and useful methodology, insightful empirical results or theoretical analysis, clear organization of related literature, or any other reason why interested readers of *ACL papers may find the paper useful.</li>
+                <li><strong>Summary of Weaknesses:</strong> What are the concerns that you have about the paper that would cause you to favor prioritizing other high-quality papers that are also under consideration for publication? These could include concerns about correctness of the results or argumentation, limited perceived impact of the methods or findings (note that impact can be significant both in broad or in narrow sub-fields), lack of clarity in exposition, or any other reason why interested readers of *ACL papers may gain less from this paper than they would from other papers under consideration. Where possible, please number your concerns so authors may respond to them individually.</li>
+                <li><strong>Comments/Suggestions/Typos:</strong> If you have any comments to the authors about how they may improve their paper, other than addressing the concerns above, please list them here.</li>
+            </ul>
+            <${headingTag}>7. Submit</${headingTag}>
+            <p>When you are satisfied with the final review, click <strong>Submit</strong>.</p>
+            <br>
+            <${headingTag}>8. Post-task questionnaire</${headingTag}>
+            <p>After submitting, please complete a short questionnaire.</p>
+        `;
+    }
+    
+    // Default instructions for scratch and collab
+    return `
+        <p><strong>Paradigm:</strong> ${getParadigmName(paradigm)}</p>
+        
+        <${headingTag}>Review criteria</${headingTag}>
+        <p>Please review the paper according to the following criteria:</p>
+        <ul>
+            <li><strong>Contribution:</strong> What is the main contribution of the paper? Is it novel and meaningful?</li>
+            <li><strong>Method:</strong> Is the method reasonable? Is the technical approach clear?</li>
+            <li><strong>Experiments:</strong> Is the experimental design sufficient? Do the results support the conclusions?</li>
+            <li><strong>Writing:</strong> Is the writing clear? Is the structure reasonable?</li>
+        </ul>
+        
+        <${headingTag}>Task requirements</${headingTag}>
+        <p>Please read the paper carefully and write a review according to the above criteria.</p>
+    `;
+}
+
+/**
  * Handle continue button
  */
 function handleContinue() {
@@ -419,24 +479,9 @@ async function renderInstructions() {
         return;
     }
 
-    // Display instructions content
+    // Display instructions content based on paradigm
     const instructionsContent = document.getElementById('instructions-content');
-    instructionsContent.innerHTML = `
-        <h2>Task instructions</h2>
-        <p><strong>Paradigm:</strong> ${getParadigmName(task.paradigm)}</p>
-        
-        <h3>Review criteria</h3>
-        <p>Please review the paper according to the following criteria:</p>
-        <ul>
-            <li><strong>Contribution:</strong> What is the main contribution of the paper? Is it novel and meaningful?</li>
-            <li><strong>Method:</strong> Is the method reasonable? Is the technical approach clear?</li>
-            <li><strong>Experiments:</strong> Is the experimental design sufficient? Do the results support the conclusions?</li>
-            <li><strong>Writing:</strong> Is the writing clear? Is the structure reasonable?</li>
-        </ul>
-        
-        <h3>Task requirements</h3>
-        <p>Please read the paper carefully and write a review according to the above criteria.</p>
-    `;
+    instructionsContent.innerHTML = getInstructionsHTML(task.paradigm, true);
 
     // If task has already started, navigate directly to task page
     if (taskState.started) {
@@ -508,23 +553,9 @@ async function renderTask() {
     document.getElementById('pdf-iframe').src = `pdfs/${task.paperId}.pdf`;
     document.getElementById('task-title').textContent = `Task ${AppState.currentTaskIndex}: ${getParadigmName(task.paradigm)}`;
 
-    // Display instructions
+    // Display instructions based on paradigm
     const instructionsDiv = document.getElementById('task-instructions');
-    instructionsDiv.innerHTML = `
-        <p><strong>Paradigm:</strong> ${getParadigmName(task.paradigm)}</p>
-        
-        <h4>Review criteria</h4>
-        <p>Please review the paper according to the following criteria:</p>
-        <ul>
-            <li><strong>Contribution:</strong> What is the main contribution of the paper? Is it novel and meaningful?</li>
-            <li><strong>Method:</strong> Is the method reasonable? Is the technical approach clear?</li>
-            <li><strong>Experiments:</strong> Is the experimental design sufficient? Do the results support the conclusions?</li>
-            <li><strong>Writing:</strong> Is the writing clear? Is the structure reasonable?</li>
-        </ul>
-        
-        <h4>Task requirements</h4>
-        <p>Please read the paper carefully and write a review according to the above criteria.</p>
-    `;
+    instructionsDiv.innerHTML = getInstructionsHTML(task.paradigm, false);
 
     // Display different UI based on paradigm
     const scratchControls = document.getElementById('scratch-controls');
@@ -544,6 +575,8 @@ async function renderTask() {
     // Reset UI
     scratchControls.style.display = 'none';
     collabControls.style.display = 'none';
+    const e2eControls = document.getElementById('e2e-controls');
+    if (e2eControls) e2eControls.style.display = 'none';
     startWritingBtn.style.display = 'none';
     startWritingCollabBtn.style.display = 'none';
     if (collabInputArea) collabInputArea.style.display = 'none';
@@ -552,6 +585,21 @@ async function renderTask() {
     submitBtn.style.display = 'inline-block';
     pauseBtn.style.display = 'none';
     resumeBtn.style.display = 'none';
+    
+    // Reset E2E sketch textarea
+    const sketchTextarea = document.getElementById('key-point-sketch');
+    if (sketchTextarea) {
+        sketchTextarea.value = '';
+        sketchTextarea.readOnly = false;
+    }
+    
+    // Clear judgment history container to prevent stale data from showing
+    const historyContainer = document.getElementById('judgment-history-container');
+    if (historyContainer) historyContainer.innerHTML = '';
+    
+    // Clear collab rounds container
+    const roundsContainer = document.getElementById('collab-rounds-container');
+    if (roundsContainer) roundsContainer.innerHTML = '';
 
     if (task.paradigm === 'scratch') {
         // Scratch mode: show start writing button
@@ -569,39 +617,60 @@ async function renderTask() {
             editor.value = taskState.draftText;
         }
     } else if (task.paradigm === 'e2e') {
-        // E2E mode: show AI-generated draft
-        // Prioritize restoring saved draft
-        if (taskState.draftText) {
-            editor.value = taskState.draftText;
+        // E2E mode: show key-point sketch input first, then AI-generated draft
+        const e2eControls = document.getElementById('e2e-controls');
+        const sketchTextarea = document.getElementById('key-point-sketch');
+        const startWritingE2EBtn = document.getElementById('start-writing-e2e-btn');
+        
+        if (e2eControls) e2eControls.style.display = 'block';
+        
+        if (!taskState.writingStartTimestamp) {
+            // Writing hasn't started yet - show sketch input
+            editorContainer.style.display = 'none';
+            submitBtn.style.display = 'none';
+            
+            // Restore sketch if previously saved (but not yet submitted)
+            if (taskState.keyPointSketch && sketchTextarea) {
+                sketchTextarea.value = taskState.keyPointSketch;
+            }
+            
+            // Make sketch editable
+            if (sketchTextarea) {
+                sketchTextarea.readOnly = false;
+            }
+            if (startWritingE2EBtn) {
+                startWritingE2EBtn.style.display = 'inline-block';
+            }
         } else {
-            // If no saved draft, load AI-generated draft
-            try {
-                const e2eReviews = await backend.loadE2EReviews();
-                const draftText = e2eReviews[task.paperId] || 'Draft not found for this paper';
-                editor.value = draftText;
-            } catch (error) {
-                console.error('Failed to load E2E draft:', error);
-                editor.value = 'Failed to load draft. Please refresh the page and try again.';
+            // Writing has started - show draft and make sketch read-only
+            writingStarted = true;
+            
+            // Restore sketch (read-only)
+            if (taskState.keyPointSketch && sketchTextarea) {
+                sketchTextarea.value = taskState.keyPointSketch;
+                sketchTextarea.readOnly = true;
+            }
+            
+            // Hide start writing button
+            if (startWritingE2EBtn) {
+                startWritingE2EBtn.style.display = 'none';
+            }
+            
+            // Load draft
+            if (taskState.draftText) {
+                editor.value = taskState.draftText;
+            } else {
+                // If no saved draft, load AI-generated draft
+                try {
+                    const e2eReviews = await backend.loadE2EReviews();
+                    const draftText = e2eReviews[task.paperId] || 'Draft not found for this paper';
+                    editor.value = draftText;
+                } catch (error) {
+                    console.error('Failed to load E2E draft:', error);
+                    editor.value = 'Failed to load draft. Please refresh the page and try again.';
+                }
             }
         }
-        
-        // If writingStartTimestamp hasn't been set yet, set it now
-        if (!taskState.writingStartTimestamp) {
-            const timestamp = new Date().toISOString();
-            await backend.saveState(AppState.currentToken, AppState.currentTaskIndex, {
-                writingStartTimestamp: timestamp
-            });
-            await backend.appendEvent({
-                participant_token: AppState.currentToken,
-                participant_id: AppState.assignment.participantId,
-                task_index: AppState.currentTaskIndex,
-                paper_id: task.paperId,
-                paradigm: task.paradigm,
-                event_type: 'start_writing',
-                timestamp
-            });
-        }
-        writingStarted = true;
     } else if (task.paradigm === 'collab') {
         // Collab mode: show collaboration controls
         collabControls.style.display = 'block';
@@ -640,6 +709,17 @@ async function renderTask() {
                         if (selectedTextarea && pendingRound.candidates) {
                             selectedTextarea.value = pendingRound.candidates[pendingRound.selectedCandidateIndex]?.output || '';
                         }
+                        // Ensure Accept/Reject buttons are enabled
+                        const acceptBtn = document.getElementById('accept-selected-btn');
+                        const rejectBtn = document.getElementById('reject-selected-btn');
+                        if (acceptBtn) {
+                            acceptBtn.disabled = false;
+                            acceptBtn.style.opacity = '1';
+                        }
+                        if (rejectBtn) {
+                            rejectBtn.disabled = false;
+                            rejectBtn.style.opacity = '1';
+                        }
                     } else {
                         // Show Stage 1 - candidate selection
                         if (selectionStage) selectionStage.style.display = 'block';
@@ -671,6 +751,7 @@ async function renderTask() {
                 if (rejectFeedbackArea) rejectFeedbackArea.style.display = 'none';
             }
         } else {
+            // Writing has NOT started yet - show only Start Writing button
             startWritingCollabBtn.style.display = 'inline-block';
             if (collabInputArea) collabInputArea.style.display = 'none';
             if (generatedArea) generatedArea.style.display = 'none';
@@ -681,20 +762,36 @@ async function renderTask() {
             // Reset judgment label to 1 for fresh start
             const judgmentLabel = document.getElementById('judgment-label');
             if (judgmentLabel) judgmentLabel.textContent = 'Judgment 1:';
+            // Hide judgment history container before writing starts
+            const historyContainerCollab = document.getElementById('judgment-history-container');
+            if (historyContainerCollab) historyContainerCollab.style.display = 'none';
+            // Hide rounds container before writing starts
+            const roundsContainerCollab = document.getElementById('collab-rounds-container');
+            if (roundsContainerCollab) roundsContainerCollab.style.display = 'none';
         }
-        // Restore editor content
-        if (taskState.draftText) {
-            editor.value = taskState.draftText;
-        }
-        // Restore judgment
-        if (taskState.judgment) {
-            const judgmentInput = document.getElementById('judgment-input');
-            if (judgmentInput) judgmentInput.value = taskState.judgment;
-        }
-        // Restore judgment history from saved rounds
-        const collabRounds = taskState.collabRounds || [];
-        if (collabRounds.length > 0) {
-            restoreJudgmentHistory(collabRounds);
+        
+        // Only restore state if writing has started
+        if (taskState.writingStartTimestamp) {
+            // Writing has started - restore editor content
+            if (taskState.draftText) {
+                editor.value = taskState.draftText;
+            }
+            // Restore judgment
+            if (taskState.judgment) {
+                const judgmentInput = document.getElementById('judgment-input');
+                if (judgmentInput) judgmentInput.value = taskState.judgment;
+            }
+            // Show judgment history container
+            const historyContainerVisible = document.getElementById('judgment-history-container');
+            if (historyContainerVisible) historyContainerVisible.style.display = 'block';
+            // Show rounds container
+            const roundsContainerVisible = document.getElementById('collab-rounds-container');
+            if (roundsContainerVisible) roundsContainerVisible.style.display = 'block';
+            // Restore judgment history from saved rounds
+            const collabRounds = taskState.collabRounds || [];
+            if (collabRounds.length > 0) {
+                restoreJudgmentHistory(collabRounds);
+            }
         }
     }
 
@@ -758,8 +855,93 @@ async function handleStartWriting() {
         document.getElementById('submit-review-btn').style.display = 'inline-block';
         document.getElementById('pause-writing-btn').style.display = 'inline-block';
         document.getElementById('resume-writing-btn').style.display = 'none';
+        // Show judgment history container (for future rounds)
+        const historyContainer = document.getElementById('judgment-history-container');
+        if (historyContainer) historyContainer.style.display = 'block';
+        // Show collab rounds container
+        const roundsContainer = document.getElementById('collab-rounds-container');
+        if (roundsContainer) roundsContainer.style.display = 'block';
     }
 
+    AppState.currentState = await backend.getCurrentState(AppState.currentToken);
+}
+
+/**
+ * Handle start writing for E2E mode (with key-point sketch validation)
+ */
+async function handleStartWritingE2E() {
+    const taskIndex = AppState.currentTaskIndex;
+    const task = AppState.assignment.tasks[taskIndex - 1];
+    
+    // Get the key-point sketch
+    const sketchTextarea = document.getElementById('key-point-sketch');
+    const keyPointSketch = sketchTextarea ? sketchTextarea.value.trim() : '';
+    
+    // Validate: sketch must not be empty
+    if (!keyPointSketch) {
+        alert('Please enter your key points before starting. This is required to capture your initial intent.');
+        return;
+    }
+    
+    // Confirm with user
+    const confirmed = confirm(
+        'Are you sure you want to start writing?\n\n' +
+        'Once you start, your key-point sketch will be locked and cannot be edited. ' +
+        'The timer will begin and you will see the LLM-generated draft.'
+    );
+    
+    if (!confirmed) {
+        return;
+    }
+    
+    const timestamp = new Date().toISOString();
+    
+    // Save state with key-point sketch and writing start timestamp
+    await backend.saveState(AppState.currentToken, taskIndex, {
+        keyPointSketch: keyPointSketch,
+        writingStartTimestamp: timestamp
+    });
+    
+    // Log event
+    await backend.appendEvent({
+        participant_token: AppState.currentToken,
+        participant_id: AppState.assignment.participantId,
+        task_index: taskIndex,
+        paper_id: task.paperId,
+        paradigm: task.paradigm,
+        event_type: 'start_writing',
+        payload: { keyPointSketch: keyPointSketch },
+        timestamp
+    });
+    
+    // Make sketch read-only
+    if (sketchTextarea) {
+        sketchTextarea.readOnly = true;
+    }
+    
+    // Hide start writing button
+    const startWritingE2EBtn = document.getElementById('start-writing-e2e-btn');
+    if (startWritingE2EBtn) {
+        startWritingE2EBtn.style.display = 'none';
+    }
+    
+    // Show editor with AI-generated draft
+    const editor = document.getElementById('review-editor');
+    try {
+        const e2eReviews = await backend.loadE2EReviews();
+        const draftText = e2eReviews[task.paperId] || 'Draft not found for this paper';
+        editor.value = draftText;
+    } catch (error) {
+        console.error('Failed to load E2E draft:', error);
+        editor.value = 'Failed to load draft. Please refresh the page and try again.';
+    }
+    
+    // Show editor, submit, and pause button
+    document.getElementById('editor-container').style.display = 'flex';
+    document.getElementById('submit-review-btn').style.display = 'inline-block';
+    document.getElementById('pause-writing-btn').style.display = 'inline-block';
+    document.getElementById('resume-writing-btn').style.display = 'none';
+    
     AppState.currentState = await backend.getCurrentState(AppState.currentToken);
 }
 
@@ -930,6 +1112,18 @@ async function handleSelectCandidate(candidateIndex) {
     if (confirmStage) confirmStage.style.display = 'block';
     if (selectedTextarea) selectedTextarea.value = selectedText;
 
+    // IMPORTANT: Re-enable Accept/Reject buttons (they may have been disabled from previous reject)
+    const acceptBtn = document.getElementById('accept-selected-btn');
+    const rejectBtn = document.getElementById('reject-selected-btn');
+    if (acceptBtn) {
+        acceptBtn.disabled = false;
+        acceptBtn.style.opacity = '1';
+    }
+    if (rejectBtn) {
+        rejectBtn.disabled = false;
+        rejectBtn.style.opacity = '1';
+    }
+
     AppState.currentState = await backend.getCurrentState(AppState.currentToken);
 }
 
@@ -1012,6 +1206,18 @@ async function handleAcceptSelected() {
     if (generatedArea) generatedArea.style.display = 'none';
     if (selectionStage) selectionStage.style.display = 'block';
     if (confirmStage) confirmStage.style.display = 'none';
+
+    // Re-enable Accept/Reject buttons for next use
+    const acceptBtn = document.getElementById('accept-selected-btn');
+    const rejectBtn = document.getElementById('reject-selected-btn');
+    if (acceptBtn) {
+        acceptBtn.disabled = false;
+        acceptBtn.style.opacity = '1';
+    }
+    if (rejectBtn) {
+        rejectBtn.disabled = false;
+        rejectBtn.style.opacity = '1';
+    }
 
     // Update judgment label for next judgment
     const judgmentLabel = document.getElementById('judgment-label');
@@ -1585,15 +1791,32 @@ async function handleDynamicAccept(expansionId) {
     const judgmentInput = document.getElementById('judgment-input');
     const judgmentText = judgmentInput ? judgmentInput.value.trim() : '';
     
-    // Get original generated text for history
-    const generatedTextEl = document.getElementById('collab-generated-text');
-    const initialExpansion = generatedTextEl ? generatedTextEl.value : '';
-    
     // Get fresh state
     const state = await backend.getCurrentState(AppState.currentToken);
     AppState.currentState = state;
     const taskState = state.tasks[taskIndex] || {};
     const rounds = [...(taskState.collabRounds || [])];
+    
+    // Get the initial expansion from the first round of this judgment
+    const acceptedCount = rounds.filter(r => r.status === 'accepted').length;
+    const currentJudgmentNum = acceptedCount + 1;
+    const currentJudgmentRounds = rounds.filter(r => r.judgmentNum === currentJudgmentNum);
+    
+    let initialExpansion = '';
+    if (currentJudgmentRounds.length > 0) {
+        const firstRound = currentJudgmentRounds[0];
+        if (firstRound.candidates && firstRound.selectedCandidateIndex !== null && firstRound.selectedCandidateIndex !== undefined) {
+            initialExpansion = firstRound.candidates[firstRound.selectedCandidateIndex]?.output || '';
+        } else if (firstRound.output) {
+            initialExpansion = firstRound.output;
+        }
+    }
+    
+    // Fallback to selected-candidate-text if not found
+    if (!initialExpansion) {
+        const selectedTextEl = document.getElementById('selected-candidate-text');
+        initialExpansion = selectedTextEl ? selectedTextEl.value : '';
+    }
 
     // Find and update the pending round
     const pendingRound = rounds.find(r => r.status === 'pending');
@@ -1630,17 +1853,35 @@ async function handleDynamicAccept(expansionId) {
     });
 
     // Create judgment history before clearing (note: createJudgmentHistory will clear collab-rounds-container)
-    const acceptedCount = rounds.filter(r => r.status === 'accepted').length;
-    createJudgmentHistory(acceptedCount, judgmentText, initialExpansion, editedOutput, 'accepted');
+    const finalAcceptedCount = rounds.filter(r => r.status === 'accepted').length;
+    createJudgmentHistory(finalAcceptedCount, judgmentText, initialExpansion, editedOutput, 'accepted');
     
     // Hide original generated area
     const generatedArea = document.getElementById('collab-generated-area');
     if (generatedArea) generatedArea.style.display = 'none';
+    
+    // Reset Stage 2 for next use
+    const selectionStage = document.getElementById('candidates-selection-stage');
+    const confirmStage = document.getElementById('candidate-confirm-stage');
+    if (selectionStage) selectionStage.style.display = 'block';
+    if (confirmStage) confirmStage.style.display = 'none';
+    
+    // Re-enable Accept/Reject buttons for next use
+    const acceptBtn = document.getElementById('accept-selected-btn');
+    const rejectBtn = document.getElementById('reject-selected-btn');
+    if (acceptBtn) {
+        acceptBtn.disabled = false;
+        acceptBtn.style.opacity = '1';
+    }
+    if (rejectBtn) {
+        rejectBtn.disabled = false;
+        rejectBtn.style.opacity = '1';
+    }
 
     // Update judgment label for next judgment
     const judgmentLabel = document.getElementById('judgment-label');
     if (judgmentLabel) {
-        judgmentLabel.textContent = `Judgment ${acceptedCount + 1}:`;
+        judgmentLabel.textContent = `Judgment ${finalAcceptedCount + 1}:`;
     }
 
     // Clear and show judgment input for next judgment
@@ -1725,11 +1966,7 @@ async function handleDynamicStop(feedbackId) {
     const judgmentInput = document.getElementById('judgment-input');
     const judgmentText = judgmentInput ? judgmentInput.value.trim() : '';
     
-    // Get original generated text for history
-    const generatedTextEl = document.getElementById('collab-generated-text');
-    const initialExpansion = generatedTextEl ? generatedTextEl.value : '';
-    
-    // Get state for counting
+    // Get state for counting and expansion data
     const taskIndex = AppState.currentTaskIndex;
     const task = AppState.assignment.tasks.find(t => t.index === taskIndex);
     const state = await backend.getCurrentState(AppState.currentToken);
@@ -1737,6 +1974,27 @@ async function handleDynamicStop(feedbackId) {
     const taskState = state.tasks[taskIndex] || {};
     const rounds = [...(taskState.collabRounds || [])];
     const acceptedCount = rounds.filter(r => r.status === 'accepted').length;
+    
+    // Find the current judgment's rounds (all rounds with the same judgmentNum)
+    const currentJudgmentNum = acceptedCount + 1;
+    const currentJudgmentRounds = rounds.filter(r => r.judgmentNum === currentJudgmentNum);
+    
+    // Get the first expansion from this judgment (from selected candidate or first round's output)
+    let initialExpansion = '';
+    if (currentJudgmentRounds.length > 0) {
+        const firstRound = currentJudgmentRounds[0];
+        if (firstRound.candidates && firstRound.selectedCandidateIndex !== null && firstRound.selectedCandidateIndex !== undefined) {
+            initialExpansion = firstRound.candidates[firstRound.selectedCandidateIndex]?.output || '';
+        } else if (firstRound.output) {
+            initialExpansion = firstRound.output;
+        }
+    }
+    
+    // Also try to get from the current UI if not found in rounds
+    if (!initialExpansion) {
+        const selectedTextEl = document.getElementById('selected-candidate-text');
+        initialExpansion = selectedTextEl ? selectedTextEl.value : '';
+    }
     
     // Mark the last round as stopped
     if (rounds.length > 0) {
@@ -1760,12 +2018,30 @@ async function handleDynamicStop(feedbackId) {
         timestamp: new Date().toISOString()
     });
     
-    // Create judgment history before clearing (note: createJudgmentHistory will clear collab-rounds-container)
-    createJudgmentHistory(acceptedCount + 1, judgmentText, initialExpansion, '', 'stopped');
+    // Create judgment history using the CURRENT judgment number (not acceptedCount + 1 for next)
+    createJudgmentHistory(currentJudgmentNum, judgmentText, initialExpansion, '', 'stopped');
     
     // Hide original generated area
     const generatedArea = document.getElementById('collab-generated-area');
     if (generatedArea) generatedArea.style.display = 'none';
+    
+    // Reset Stage 2 for next use - hide confirm stage, show selection stage
+    const selectionStage = document.getElementById('candidates-selection-stage');
+    const confirmStage = document.getElementById('candidate-confirm-stage');
+    if (selectionStage) selectionStage.style.display = 'block';
+    if (confirmStage) confirmStage.style.display = 'none';
+    
+    // Re-enable Accept/Reject buttons for next use
+    const acceptBtn = document.getElementById('accept-selected-btn');
+    const rejectBtn = document.getElementById('reject-selected-btn');
+    if (acceptBtn) {
+        acceptBtn.disabled = false;
+        acceptBtn.style.opacity = '1';
+    }
+    if (rejectBtn) {
+        rejectBtn.disabled = false;
+        rejectBtn.style.opacity = '1';
+    }
     
     // Show judgment input area
     const collabInputArea = document.getElementById('collab-input-area');
@@ -1782,10 +2058,10 @@ async function handleDynamicStop(feedbackId) {
         generateBtn.textContent = 'Generate';
     }
     
-    // Update judgment label
+    // Update judgment label for NEXT judgment
     const judgmentLabel = document.getElementById('judgment-label');
     if (judgmentLabel) {
-        judgmentLabel.textContent = `Judgment ${acceptedCount + 1}:`;
+        judgmentLabel.textContent = `Judgment ${currentJudgmentNum + 1}:`;
     }
 }
 

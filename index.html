@@ -79,10 +79,20 @@
                     <div id="scratch-controls" style="display: none;">
                         <button id="start-writing-btn" class="btn btn-primary">Start writing</button>
                     </div>
+                    <div id="e2e-controls" style="display: none;">
+                        <div id="e2e-sketch-area">
+                            <div class="sketch-input-group">
+                                <label for="key-point-sketch"><strong>Key-point sketch</strong>:</label>
+                                <p class="sketch-hint">Please write a brief list of the key points you intend to raise in your review, including the main strengths and weaknesses.</p>
+                                <textarea id="key-point-sketch" rows="10"></textarea>
+                            </div>
+                            <button id="start-writing-e2e-btn" class="btn btn-primary">Start writing</button>
+                        </div>
+                    </div>
                     <div id="collab-controls" style="display: none;">
                         <button id="start-writing-collab-btn" class="btn btn-primary">Start writing</button>
-                        <!-- Container for judgment history (completed rounds) - placed above current interaction -->
-                        <div id="judgment-history-container"></div>
+                        <!-- Container for judgment history (completed rounds) - only shown after writing starts -->
+                        <div id="judgment-history-container" style="display: none;"></div>
                         <div id="collab-input-area" style="display: none;">
                             <div class="collab-input-group collab-input-inline">
                                 <label for="judgment-input" id="judgment-label">Judgment 1:</label>
@@ -125,8 +135,8 @@
                                 </div>
                             </div>
                         </div>
-                        <!-- Container for dynamically added feedback and expansion rounds -->
-                        <div id="collab-rounds-container"></div>
+                        <!-- Container for dynamically added feedback and expansion rounds - only shown after writing starts -->
+                        <div id="collab-rounds-container" style="display: none;"></div>
                     </div>
                     <div id="editor-container">
                         <textarea id="review-editor"></textarea>
