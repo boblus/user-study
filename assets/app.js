@@ -433,7 +433,53 @@ function getInstructionsHTML(paradigm, isFullPage) {
         `;
     }
     
-    // Default instructions for scratch and collab
+    if (paradigm === 'collab') {
+        return `
+            <p>In this task, you will produce a review by <strong>collaborating with an LLM</strong>. Please read the instructions carefully.</p>
+            <br>
+            <${headingTag}>1. Read the paper first</${headingTag}>
+            <p>Please read the assigned paper carefully before starting the timed writing phase.</p>
+            <br>
+            <${headingTag}>2. Start the timed writing phase</${headingTag}>
+            <p>Once you have finished reading, click <strong>Start writing</strong>. Timing begins at this moment. Please try to reserve at least <strong>120 minutes</strong> of uninterrupted time for writing, since we would like to record the completion time. If you need to step away, please click <strong>Pause</strong>.</p>
+            <br>
+            <${headingTag}>3. Collaborate with the LLM</${headingTag}>
+            <p>You will write the review by iterating over <strong>judgement</strong> → <strong>generation</strong> → <strong>selection</strong> → <strong>feedback/edit</strong> cycles.</p>
+            <br>
+            <ul>
+                <li><p><strong>Step A: Enter a judgment (one at a time)</strong></p>
+                <p>In the Judgement block, write one strength/weakness point you want to raise in the review.</p></li>
+                <li><p><strong>Step B: Generate candidates</strong></p>
+                <p>After you submit your judgment, the system will generate 2 candidate review comments.</p></li>
+                <li><p><strong>Step C: Choose and refine</strong></p>
+                <p>Select the candidate you prefer. You may then edit the selected review to better reflect your intent.</p></li>
+                <li><p><strong>Step D: Accept or reject</strong></p>
+                <ul>
+                    <li><p>If the candidate is satisfactory, <strong>accept</strong> it and move on to the next judgment.</p></li>
+                    <li><p>If it is not satisfactory, you may <strong>provide feedback</strong>. The system will then generate a new candidate based on your feedback.</p></li>
+                    <li><p>If further interaction is not helpful for a particular point, you may <strong>stop iterating</strong> on that point and proceed to the next judgment.</p></li>
+                </ul></li>
+            </ul>
+            <p>You may repeat steps A-D <strong>multiple rounds</strong> until you have covered the strengths, weakness, and suggestions you want to include.</p>
+            <br>
+            <${headingTag}>4. Output</${headingTag}>
+            <p>Please output only the <strong>Strengths</strong>, <strong>Weaknesses</strong>, and <strong>Comments/Suggestions/Typos</strong> (if there are any) sections. You do <strong>not</strong> need to write a paper summary or provide review scores.</p>
+            <br>
+            <${headingTag}>5. Review guidelines</${headingTag}>
+            <ul>
+                <li><strong>Summary of Strengths:</strong> What are the major reasons to publish this paper at a selective *ACL venue? These could include novel and useful methodology, insightful empirical results or theoretical analysis, clear organization of related literature, or any other reason why interested readers of *ACL papers may find the paper useful.</li>
+                <li><strong>Summary of Weaknesses:</strong> What are the concerns that you have about the paper that would cause you to favor prioritizing other high-quality papers that are also under consideration for publication? These could include concerns about correctness of the results or argumentation, limited perceived impact of the methods or findings (note that impact can be significant both in broad or in narrow sub-fields), lack of clarity in exposition, or any other reason why interested readers of *ACL papers may gain less from this paper than they would from other papers under consideration. Where possible, please number your concerns so authors may respond to them individually.</li>
+                <li><strong>Comments/Suggestions/Typos:</strong> If you have any comments to the authors about how they may improve their paper, other than addressing the concerns above, please list them here.</li>
+            </ul>
+            <${headingTag}>6. Submit</${headingTag}>
+            <p>When you are satisfied with the final review, click <strong>Submit</strong>.</p>
+            <br>
+            <${headingTag}>7. Post-task questionnaire</${headingTag}>
+            <p>After submitting, please complete a short questionnaire.</p>
+        `;
+    }
+    
+    // Default instructions for scratch
     return `
         <p><strong>Paradigm:</strong> ${getParadigmName(paradigm)}</p>
         
@@ -896,23 +942,29 @@ async function handleStartWritingE2E() {
     
     const timestamp = new Date().toISOString();
     
-    // Save state with key-point sketch and writing start timestamp
-    await backend.saveState(AppState.currentToken, taskIndex, {
-        keyPointSketch: keyPointSketch,
-        writingStartTimestamp: timestamp
-    });
-    
-    // Log event
-    await backend.appendEvent({
-        participant_token: AppState.currentToken,
-        participant_id: AppState.assignment.participantId,
-        task_index: taskIndex,
-        paper_id: task.paperId,
-        paradigm: task.paradigm,
-        event_type: 'start_writing',
-        payload: { keyPointSketch: keyPointSketch },
-        timestamp
-    });
+    try {
+        // Save state with key-point sketch and writing start timestamp
+        await backend.saveState(AppState.currentToken, taskIndex, {
+            keyPointSketch: keyPointSketch,
+            writingStartTimestamp: timestamp
+        });
+        
+        // Log event
+        await backend.appendEvent({
+            participant_token: AppState.currentToken,
+            participant_id: AppState.assignment.participantId,
+            task_index: taskIndex,
+            paper_id: task.paperId,
+            paradigm: task.paradigm,
+            event_type: 'start_writing',
+            payload: { keyPointSketch: keyPointSketch },
+            timestamp
+        });
+    } catch (error) {
+        console.error('Failed to save state or log event:', error);
+        alert('Failed to save your progress. Please check your connection and try again.');
+        return;
+    }
     
     // Make sketch read-only
     if (sketchTextarea) {
@@ -942,7 +994,11 @@ async function handleStartWritingE2E() {
     document.getElementById('pause-writing-btn').style.display = 'inline-block';
     document.getElementById('resume-writing-btn').style.display = 'none';
     
-    AppState.currentState = await backend.getCurrentState(AppState.currentToken);
+    try {
+        AppState.currentState = await backend.getCurrentState(AppState.currentToken);
+    } catch (error) {
+        console.error('Failed to refresh state:', error);
+    }
 }
 
 /**
