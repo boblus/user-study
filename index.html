@@ -8,6 +8,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/styles.css">
+    <!-- <a href="https://www.flaticon.com/free-icons/home" title="home icons">Home icons created by Dave Gandy - Flaticon</a> -->
+    <!-- <a href="https://www.flaticon.com/free-icons/up-arrow" title="up arrow icons">Up arrow icons created by Catalin Fertu - Flaticon</a> -->
 </head>
 <body>
     <!-- Login view -->
@@ -29,7 +31,7 @@
     <div id="view-overview" class="view" style="display: none;">
         <div class="container">
             <div class="header-actions">
-                <button id="back-to-login-overview" class="btn btn-secondary">Back to login</button>
+                <button id="back-to-login-overview" class="btn btn-secondary"><img src="home.png" alt="Home" class="home-icon"></button>
             </div>
             <h1>Task overview</h1>
             <div id="tasks-list" class="tasks-list"></div>
@@ -43,7 +45,7 @@
     <div id="view-instructions" class="view" style="display: none;">
         <div class="container">
             <div class="header-actions">
-                <button id="back-to-login-instructions" class="btn btn-secondary">Back to login</button>
+                <button id="back-to-login-instructions" class="btn btn-secondary"><img src="home.png" alt="Home" class="home-icon"></button>
             </div>
             <h1>Task instructions</h1>
             <div id="instructions-content"></div>
@@ -57,7 +59,7 @@
     <div id="view-task" class="view" style="display: none;">
         <div class="task-container">
             <div class="task-header-top">
-                <button id="back-to-login-task" class="btn btn-secondary">Back to login</button>
+                <button id="back-to-login-task" class="btn btn-secondary"><img src="home.png" alt="Home" class="home-icon"></button>
             </div>
             <div class="task-left">
                 <div class="task-header">
@@ -91,13 +93,37 @@
                     </div>
                     <div id="collab-controls" style="display: none;">
                         <button id="start-writing-collab-btn" class="btn btn-primary">Start writing</button>
-                        <!-- Container for judgment history (completed rounds) - only shown after writing starts -->
-                        <div id="judgment-history-container" style="display: none;"></div>
+                        <!-- Collapsible History wrapper - only shown after writing starts -->
+                        <div id="history-wrapper" class="history-wrapper collapsed" style="display: none;">
+                            <div class="history-wrapper-header" id="history-toggle">
+                                <span>History</span>
+                                <span class="history-count"></span>
+                                <span class="toggle-icon">▼</span>
+                            </div>
+                            <div class="history-wrapper-content">
+                                <div id="judgment-history-container"></div>
+                            </div>
+                        </div>
                         <div id="collab-input-area" style="display: none;">
-                            <div class="collab-input-group collab-input-inline">
-                                <label for="judgment-input" id="judgment-label">Judgment 1:</label>
-                                <input type="text" id="judgment-input">
-                                <button id="generate-btn" class="btn btn-secondary">Generate</button>
+                            <div class="input-container">
+                                <div class="input-container-header">
+                                    <strong>Input</strong>
+                                </div>
+                                <div class="input-container-body">
+                                    <div class="collab-input-group">
+                                        <label for="text-snippet-input">Text snippet (optional):</label>
+                                        <p class="input-hint">If your judgment refers to a specific sentence/paragraph/section of the paper, paste it here to provide context.</p>
+                                        <textarea id="text-snippet-input" rows="5"></textarea>
+                                    </div>
+                                    <div class="collab-input-group">
+                                        <label for="judgment-input" id="judgment-label">Judgment:</label>
+                                        <p class="input-hint">Write one strength/weakness point you want to raise in the review (e.g., "Clarity is a strength").</p>
+                                        <div class="judgment-input-row">
+                                            <textarea id="judgment-input" rows="1"></textarea>
+                                            <button id="generate-btn" class="generate-icon-btn"><img src="up-arrow.png" alt="Generate" class="generate-icon"></button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div id="collab-generated-area" style="display: none;">
@@ -106,21 +132,17 @@
                                 <div class="candidates-container">
                                     <div class="candidate" id="candidate-0">
                                         <label>Candidate 1:</label>
-                                        <textarea class="candidate-text" rows="4" readonly></textarea>
-                                        <div class="candidate-actions">
-                                            <button class="btn btn-primary select-candidate-btn" data-index="0">Select</button>
-                                        </div>
+                                        <textarea class="candidate-text" rows="10" readonly></textarea>
                                     </div>
                                     <div class="candidate" id="candidate-1">
                                         <label>Candidate 2:</label>
-                                        <textarea class="candidate-text" rows="4" readonly></textarea>
-                                        <div class="candidate-actions">
-                                            <button class="btn btn-primary select-candidate-btn" data-index="1">Select</button>
-                                        </div>
+                                        <textarea class="candidate-text" rows="10" readonly></textarea>
                                     </div>
                                 </div>
-                                <div class="collab-generated-actions">
-                                    <button id="regenerate-btn" class="btn btn-secondary">Regenerate</button>
+                                <div class="candidates-buttons-container">
+                                    <button class="btn btn-primary select-candidate-btn" data-index="0">Candidate 1</button>
+                                    <button class="btn btn-primary select-candidate-btn" data-index="1">Candidate 2</button>
+                                    <button id="reject-all-btn" class="btn btn-secondary">Reject all</button>
                                 </div>
                             </div>
                             <!-- Stage 2: Confirm selected candidate -->
@@ -131,6 +153,7 @@
                                 </div>
                                 <div class="collab-generated-actions">
                                     <button id="accept-selected-btn" class="btn btn-primary">Accept</button>
+                                    <button id="refine-selected-btn" class="btn btn-secondary">Refine</button>
                                     <button id="reject-selected-btn" class="btn btn-secondary">Reject</button>
                                 </div>
                             </div>
@@ -155,7 +178,7 @@
     <div id="view-questionnaire" class="view" style="display: none;">
         <div class="container">
             <div class="header-actions">
-                <button id="back-to-login-questionnaire" class="btn btn-secondary">Back to login</button>
+                <button id="back-to-login-questionnaire" class="btn btn-secondary"><img src="home.png" alt="Home" class="home-icon"></button>
             </div>
             <h1>Post-task questionnaire</h1>
             <p>Please answer the following questions based on the task you just completed:</p>
@@ -303,7 +326,7 @@
     <div id="view-complete" class="view" style="display: none;">
         <div class="container">
             <div class="header-actions">
-                <button id="back-to-login-complete" class="btn btn-secondary">Back to login</button>
+                <button id="back-to-login-complete" class="btn btn-secondary"><img src="home.png" alt="Home" class="home-icon"></button>
             </div>
             <h1>Task complete</h1>
             <p class="success-message">You have completed all tasks!</p>

@@ -163,17 +163,24 @@ function bindEventListeners() {
         });
     });
     
-    // Regenerate button (Stage 1)
-    const regenerateBtn = document.getElementById('regenerate-btn');
-    if (regenerateBtn) regenerateBtn.addEventListener('click', handleRegenerate);
+    // Regenerate button removed from UI
+    // const regenerateBtn = document.getElementById('regenerate-btn');
+    // if (regenerateBtn) regenerateBtn.addEventListener('click', handleRegenerate);
     
-    // Accept/Reject selected candidate (Stage 2)
+    // Accept/Refine/Reject selected candidate (Stage 2)
     const acceptSelectedBtn = document.getElementById('accept-selected-btn');
     if (acceptSelectedBtn) acceptSelectedBtn.addEventListener('click', handleAcceptSelected);
-    
+
+    const refineSelectedBtn = document.getElementById('refine-selected-btn');
+    if (refineSelectedBtn) refineSelectedBtn.addEventListener('click', handleRefineSelected);
+
     const rejectSelectedBtn = document.getElementById('reject-selected-btn');
     if (rejectSelectedBtn) rejectSelectedBtn.addEventListener('click', handleRejectSelected);
-    
+
+    // Reject all candidates (Stage 1)
+    const rejectAllBtn = document.getElementById('reject-all-btn');
+    if (rejectAllBtn) rejectAllBtn.addEventListener('click', handleRejectAllCandidates);
+
     document.getElementById('submit-review-btn').addEventListener('click', handleSubmitReview);
     document.getElementById('pause-writing-btn').addEventListener('click', handlePauseWriting);
     document.getElementById('resume-writing-btn').addEventListener('click', handleResumeWriting);
@@ -187,6 +194,21 @@ function bindEventListeners() {
             const container = instructionsToggle.parentElement;
             container.classList.toggle('collapsed');
         });
+    }
+
+    // History wrapper toggle
+    const historyToggle = document.getElementById('history-toggle');
+    if (historyToggle) {
+        historyToggle.addEventListener('click', () => {
+            const wrapper = document.getElementById('history-wrapper');
+            if (wrapper) wrapper.classList.toggle('collapsed');
+        });
+    }
+
+    // Text snippet paste handler - clean up PDF formatting
+    const textSnippetInput = document.getElementById('text-snippet-input');
+    if (textSnippetInput) {
+        textSnippetInput.addEventListener('paste', handleTextSnippetPaste);
     }
 
     // Questionnaire page
@@ -203,12 +225,60 @@ function bindEventListeners() {
 function handleBackToLogin() {
     // Remove saved token from localStorage
     localStorage.removeItem('currentParticipantToken');
-    
+
     // Reset all application state
     resetAppState();
-    
+
     // Navigate to login page
     navigateTo('/login');
+}
+
+/**
+ * Handle paste event in text snippet input - clean up PDF formatting
+ */
+function handleTextSnippetPaste(e) {
+    // Prevent default paste behavior
+    e.preventDefault();
+
+    // Get pasted text from clipboard
+    const pastedText = e.clipboardData.getData('text');
+
+    // Clean up the text
+    let cleanedText = pastedText;
+
+    // Step 1: Remove hyphen + optional space + exactly 3 digits (e.g., "simi- 158lar" -> "similar", "re-161stricting" -> "restricting")
+    // This handles the most common case of line breaks with hyphens
+    // (?!\d) ensures it's exactly 3 digits, not part of a longer number
+    cleanedText = cleanedText.replace(/- ?\d{3}(?!\d)/g, '');
+
+    // Step 2: Replace standalone 3-digit line numbers with a space (e.g., "reward 159learning" -> "reward learning")
+    // Only match exactly 3 consecutive digits that are NOT part of a longer number
+    // (?<!\d) ensures no digit before, (?!\d) ensures no digit after
+    cleanedText = cleanedText.replace(/(?<!\d)\d{3}(?!\d)/g, ' ');
+
+    // Step 3: Handle line numbers mixed with years in citations (e.g., ", 1572023)" -> ", 2023)")
+    // Pattern: comma + optional space + digits + 4-digit year + closing parenthesis
+    // Keep only the last 4 digits (the year)
+    cleanedText = cleanedText.replace(/,\s?(\d+)(\d{4})(\))/g, ', $2$3');
+
+    // Step 4: Clean up multiple spaces and newlines
+    cleanedText = cleanedText.replace(/\s+/g, ' ');
+
+    // Step 5: Trim leading/trailing whitespace
+    cleanedText = cleanedText.trim();
+
+    // Insert cleaned text at cursor position
+    const target = e.target;
+    const start = target.selectionStart;
+    const end = target.selectionEnd;
+    const currentValue = target.value;
+
+    // Update the textarea value
+    target.value = currentValue.substring(0, start) + cleanedText + currentValue.substring(end);
+
+    // Set cursor position after inserted text
+    const newCursorPos = start + cleanedText.length;
+    target.setSelectionRange(newCursorPos, newCursorPos);
 }
 
 /**
@@ -240,15 +310,23 @@ function resetAppState() {
     const judgmentInput = document.getElementById('judgment-input');
     if (judgmentInput) judgmentInput.value = '';
     
+    const textSnippetInput = document.getElementById('text-snippet-input');
+    if (textSnippetInput) textSnippetInput.value = '';
+    
     const judgmentLabel = document.getElementById('judgment-label');
-    if (judgmentLabel) judgmentLabel.textContent = 'Judgment 1:';
+    if (judgmentLabel) judgmentLabel.textContent = 'Judgment:';
     
     const generatedText = document.getElementById('collab-generated-text');
     if (generatedText) generatedText.value = '';
     
     const historyContainer = document.getElementById('judgment-history-container');
     if (historyContainer) historyContainer.innerHTML = '';
-    
+    // Reset history wrapper
+    const historyWrapperClear = document.getElementById('history-wrapper');
+    if (historyWrapperClear) historyWrapperClear.classList.add('collapsed');
+    const historyCountClear = document.querySelector('.history-wrapper-header .history-count');
+    if (historyCountClear) historyCountClear.textContent = '';
+
     const roundsContainer = document.getElementById('collab-rounds-container');
     if (roundsContainer) roundsContainer.innerHTML = '';
 }
@@ -435,7 +513,7 @@ function getInstructionsHTML(paradigm, isFullPage) {
     
     if (paradigm === 'collab') {
         return `
-            <p>In this task, you will produce a review by <strong>collaborating with an LLM</strong>. Please read the instructions carefully.</p>
+            <p>In this task, you will produce a review by <strong>collaborating with a review generation system</strong>. Please read the instructions carefully.</p>
             <br>
             <${headingTag}>1. Read the paper first</${headingTag}>
             <p>Please read the assigned paper carefully before starting the timed writing phase.</p>
@@ -443,12 +521,15 @@ function getInstructionsHTML(paradigm, isFullPage) {
             <${headingTag}>2. Start the timed writing phase</${headingTag}>
             <p>Once you have finished reading, click <strong>Start writing</strong>. Timing begins at this moment. Please try to reserve at least <strong>120 minutes</strong> of uninterrupted time for writing, since we would like to record the completion time. If you need to step away, please click <strong>Pause</strong>.</p>
             <br>
-            <${headingTag}>3. Collaborate with the LLM</${headingTag}>
+            <${headingTag}>3. Collaborate with the system</${headingTag}>
             <p>You will write the review by iterating over <strong>judgement</strong> → <strong>generation</strong> → <strong>selection</strong> → <strong>feedback/edit</strong> cycles.</p>
             <br>
             <ul>
-                <li><p><strong>Step A: Enter a judgment (one at a time)</strong></p>
-                <p>In the Judgement block, write one strength/weakness point you want to raise in the review.</p></li>
+                <li><p><strong>Step A: Enter a judgment (one at a time) and provide context (optional, if needed)</strong></p>
+                <ul>
+                    <li><p>In the Judgement block, write one strength/weakness point you want to raise in the review (e.g., "Clarity is a strength").</p></li>
+                    <li><p>If your judgment refers to a specific sentence/paragraph/section of the paper, paste it in the Text snippet block to provide context to the system.</p></li>
+                </ul></li>
                 <li><p><strong>Step B: Generate candidates</strong></p>
                 <p>After you submit your judgment, the system will generate 2 candidate review comments.</p></li>
                 <li><p><strong>Step C: Choose and refine</strong></p>
@@ -642,6 +723,11 @@ async function renderTask() {
     // Clear judgment history container to prevent stale data from showing
     const historyContainer = document.getElementById('judgment-history-container');
     if (historyContainer) historyContainer.innerHTML = '';
+    // Reset history wrapper to collapsed state
+    const historyWrapperReset = document.getElementById('history-wrapper');
+    if (historyWrapperReset) historyWrapperReset.classList.add('collapsed');
+    const historyCountReset = document.querySelector('.history-wrapper-header .history-count');
+    if (historyCountReset) historyCountReset.textContent = '';
     
     // Clear collab rounds container
     const roundsContainer = document.getElementById('collab-rounds-container');
@@ -736,7 +822,7 @@ async function renderTask() {
             // Update judgment label
             const judgmentLabel = document.getElementById('judgment-label');
             if (judgmentLabel) {
-                judgmentLabel.textContent = `Judgment ${acceptedCount + 1}:`;
+                judgmentLabel.textContent = 'Judgment:';
             }
             
             if (pendingRound) {
@@ -755,12 +841,17 @@ async function renderTask() {
                         if (selectedTextarea && pendingRound.candidates) {
                             selectedTextarea.value = pendingRound.candidates[pendingRound.selectedCandidateIndex]?.output || '';
                         }
-                        // Ensure Accept/Reject buttons are enabled
+                        // Ensure Accept/Refine/Reject buttons are enabled
                         const acceptBtn = document.getElementById('accept-selected-btn');
+                        const refineBtn = document.getElementById('refine-selected-btn');
                         const rejectBtn = document.getElementById('reject-selected-btn');
                         if (acceptBtn) {
                             acceptBtn.disabled = false;
                             acceptBtn.style.opacity = '1';
+                        }
+                        if (refineBtn) {
+                            refineBtn.disabled = false;
+                            refineBtn.style.opacity = '1';
                         }
                         if (rejectBtn) {
                             rejectBtn.disabled = false;
@@ -786,15 +877,29 @@ async function renderTask() {
                 if (generateBtn) generateBtn.style.display = 'none';
                 if (rejectFeedbackArea) rejectFeedbackArea.style.display = 'none';
             } else if (lastRound && lastRound.status === 'rejected' && !lastRound.feedback) {
-                // Last round was rejected, show feedback area
-                if (collabInputArea) collabInputArea.style.display = 'none';
+                // Last round was rejected but no feedback yet - show input area and recreate feedback area
+                if (collabInputArea) collabInputArea.style.display = 'block';
                 if (generatedArea) generatedArea.style.display = 'none';
-                if (rejectFeedbackArea) rejectFeedbackArea.style.display = 'block';
+                if (rejectFeedbackArea) rejectFeedbackArea.style.display = 'none';
+                // Recreate dynamic feedback area
+                createFeedbackArea('collab-rounds-container');
+                // Show generate button as alternative to feedback
+                if (generateBtn) {
+                    generateBtn.style.display = 'inline-block';
+                    generateBtn.disabled = false;
+                    generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generate" class="generate-icon">';
+                }
             } else {
                 // Ready for new judgment input
                 if (collabInputArea) collabInputArea.style.display = 'block';
                 if (generatedArea) generatedArea.style.display = 'none';
                 if (rejectFeedbackArea) rejectFeedbackArea.style.display = 'none';
+                // Show generate button for new input
+                if (generateBtn) {
+                    generateBtn.style.display = 'inline-block';
+                    generateBtn.disabled = false;
+                    generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generate" class="generate-icon">';
+                }
             }
         } else {
             // Writing has NOT started yet - show only Start Writing button
@@ -805,12 +910,12 @@ async function renderTask() {
             // Hide editor and submit button before writing starts
             editorContainer.style.display = 'none';
             submitBtn.style.display = 'none';
-            // Reset judgment label to 1 for fresh start
+            // Reset judgment label for fresh start
             const judgmentLabel = document.getElementById('judgment-label');
-            if (judgmentLabel) judgmentLabel.textContent = 'Judgment 1:';
-            // Hide judgment history container before writing starts
-            const historyContainerCollab = document.getElementById('judgment-history-container');
-            if (historyContainerCollab) historyContainerCollab.style.display = 'none';
+            if (judgmentLabel) judgmentLabel.textContent = 'Judgment:';
+            // Hide history wrapper before writing starts
+            const historyWrapperCollab = document.getElementById('history-wrapper');
+            if (historyWrapperCollab) historyWrapperCollab.style.display = 'none';
             // Hide rounds container before writing starts
             const roundsContainerCollab = document.getElementById('collab-rounds-container');
             if (roundsContainerCollab) roundsContainerCollab.style.display = 'none';
@@ -827,9 +932,9 @@ async function renderTask() {
                 const judgmentInput = document.getElementById('judgment-input');
                 if (judgmentInput) judgmentInput.value = taskState.judgment;
             }
-            // Show judgment history container
-            const historyContainerVisible = document.getElementById('judgment-history-container');
-            if (historyContainerVisible) historyContainerVisible.style.display = 'block';
+            // Show history wrapper
+            const historyWrapperVisible = document.getElementById('history-wrapper');
+            if (historyWrapperVisible) historyWrapperVisible.style.display = 'block';
             // Show rounds container
             const roundsContainerVisible = document.getElementById('collab-rounds-container');
             if (roundsContainerVisible) roundsContainerVisible.style.display = 'block';
@@ -893,17 +998,17 @@ async function handleStartWriting() {
     } else if (task.paradigm === 'collab') {
         document.getElementById('start-writing-collab-btn').style.display = 'none';
         document.getElementById('collab-input-area').style.display = 'block';
-        // Initialize judgment label to 1
+        // Initialize judgment label
         const judgmentLabel = document.getElementById('judgment-label');
-        if (judgmentLabel) judgmentLabel.textContent = 'Judgment 1:';
+        if (judgmentLabel) judgmentLabel.textContent = 'Judgment:';
         // Show editor and submit button
         document.getElementById('editor-container').style.display = 'flex';
         document.getElementById('submit-review-btn').style.display = 'inline-block';
         document.getElementById('pause-writing-btn').style.display = 'inline-block';
         document.getElementById('resume-writing-btn').style.display = 'none';
-        // Show judgment history container (for future rounds)
-        const historyContainer = document.getElementById('judgment-history-container');
-        if (historyContainer) historyContainer.style.display = 'block';
+        // Show history wrapper (for future rounds)
+        const historyWrapper = document.getElementById('history-wrapper');
+        if (historyWrapper) historyWrapper.style.display = 'block';
         // Show collab rounds container
         const roundsContainer = document.getElementById('collab-rounds-container');
         if (roundsContainer) roundsContainer.style.display = 'block';
@@ -1023,9 +1128,13 @@ async function handleGenerate() {
         return;
     }
 
-    // Count accepted rounds to determine current judgment number
-    const acceptedCount = rounds.filter(r => r.status === 'accepted').length;
-    const currentJudgmentNum = acceptedCount + 1;
+    // Get text snippet from input field
+    const textSnippetInput = document.getElementById('text-snippet-input');
+    const textSnippet = textSnippetInput ? textSnippetInput.value.trim() : '';
+
+    // Count completed rounds (accepted + rejected_all) to determine current judgment number
+    const completedCount = rounds.filter(r => r.status === 'accepted' || r.status === 'rejected_all').length;
+    const currentJudgmentNum = completedCount + 1;
 
     // Get feedback from previous round (if any)
     const lastRound = rounds[rounds.length - 1];
@@ -1035,7 +1144,7 @@ async function handleGenerate() {
     const generateBtn = document.getElementById('generate-btn');
     if (generateBtn) {
         generateBtn.disabled = true;
-        generateBtn.textContent = 'Generating...';
+        generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generating" class="generate-icon">';
     }
 
     try {
@@ -1044,7 +1153,8 @@ async function handleGenerate() {
             task.paperId,
             rounds,
             judgment,
-            feedback
+            feedback,
+            textSnippet
         );
 
         // Add new round with multiple candidates
@@ -1052,6 +1162,7 @@ async function handleGenerate() {
             roundId: rounds.length + 1,
             judgmentNum: currentJudgmentNum,
             judgment: judgment,
+            textSnippet: textSnippet,
             candidates: candidates,  // Array of {output, temperature}
             output: null,  // Will be set when user accepts a candidate
             selectedCandidateIndex: null,
@@ -1094,12 +1205,12 @@ async function handleGenerate() {
             btn.style.opacity = '1';
         });
         
-        // Enable regenerate button
-        const regenerateBtn = document.getElementById('regenerate-btn');
-        if (regenerateBtn) {
-            regenerateBtn.disabled = false;
-            regenerateBtn.style.opacity = '1';
-        }
+        // Regenerate button removed from UI
+        // const regenerateBtn = document.getElementById('regenerate-btn');
+        // if (regenerateBtn) {
+        //     regenerateBtn.disabled = false;
+        //     regenerateBtn.style.opacity = '1';
+        // }
 
         // Update state
         AppState.currentState = await backend.getCurrentState(AppState.currentToken);
@@ -1109,7 +1220,7 @@ async function handleGenerate() {
         // Re-enable generate button on error
         if (generateBtn) {
             generateBtn.disabled = false;
-            generateBtn.textContent = 'Generate';
+            generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generate" class="generate-icon">';
         }
     }
 }
@@ -1168,12 +1279,17 @@ async function handleSelectCandidate(candidateIndex) {
     if (confirmStage) confirmStage.style.display = 'block';
     if (selectedTextarea) selectedTextarea.value = selectedText;
 
-    // IMPORTANT: Re-enable Accept/Reject buttons (they may have been disabled from previous reject)
+    // IMPORTANT: Re-enable Accept/Refine/Reject buttons (they may have been disabled from previous refine)
     const acceptBtn = document.getElementById('accept-selected-btn');
+    const refineBtn = document.getElementById('refine-selected-btn');
     const rejectBtn = document.getElementById('reject-selected-btn');
     if (acceptBtn) {
         acceptBtn.disabled = false;
         acceptBtn.style.opacity = '1';
+    }
+    if (refineBtn) {
+        refineBtn.disabled = false;
+        refineBtn.style.opacity = '1';
     }
     if (rejectBtn) {
         rejectBtn.disabled = false;
@@ -1249,10 +1365,10 @@ async function handleAcceptSelected() {
     
     // Get the original candidate output for history
     const originalOutput = pendingRound?.candidates?.[candidateIndex]?.output || editedOutput;
-    
-    // Create judgment history
-    const acceptedCount = rounds.filter(r => r.status === 'accepted').length;
-    createJudgmentHistory(acceptedCount, judgmentText, originalOutput, editedOutput, 'accepted');
+
+    // Create judgment history - use the round's judgmentNum
+    const judgmentNum = pendingRound?.judgmentNum || 1;
+    createJudgmentHistory(judgmentNum, judgmentText, originalOutput, editedOutput, 'accepted');
     
     // Reset UI
     const generatedArea = document.getElementById('collab-generated-area');
@@ -1263,12 +1379,17 @@ async function handleAcceptSelected() {
     if (selectionStage) selectionStage.style.display = 'block';
     if (confirmStage) confirmStage.style.display = 'none';
 
-    // Re-enable Accept/Reject buttons for next use
+    // Re-enable Accept/Refine/Reject buttons for next use
     const acceptBtn = document.getElementById('accept-selected-btn');
+    const refineBtn = document.getElementById('refine-selected-btn');
     const rejectBtn = document.getElementById('reject-selected-btn');
     if (acceptBtn) {
         acceptBtn.disabled = false;
         acceptBtn.style.opacity = '1';
+    }
+    if (refineBtn) {
+        refineBtn.disabled = false;
+        refineBtn.style.opacity = '1';
     }
     if (rejectBtn) {
         rejectBtn.disabled = false;
@@ -1278,11 +1399,14 @@ async function handleAcceptSelected() {
     // Update judgment label for next judgment
     const judgmentLabel = document.getElementById('judgment-label');
     if (judgmentLabel) {
-        judgmentLabel.textContent = `Judgment ${acceptedCount + 1}:`;
+        judgmentLabel.textContent = 'Judgment:';
     }
 
     // Clear and show judgment input
     if (judgmentInput) judgmentInput.value = '';
+    
+    const textSnippetInput = document.getElementById('text-snippet-input');
+    if (textSnippetInput) textSnippetInput.value = '';
     
     const collabInputArea = document.getElementById('collab-input-area');
     if (collabInputArea) collabInputArea.style.display = 'block';
@@ -1291,19 +1415,102 @@ async function handleAcceptSelected() {
     if (generateBtn) {
         generateBtn.style.display = 'inline-block';
         generateBtn.disabled = false;
-        generateBtn.textContent = 'Generate';
+        generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generate" class="generate-icon">';
     }
 
     AppState.currentState = await backend.getCurrentState(AppState.currentToken);
 }
 
 /**
- * Handle reject the selected candidate (Stage 2 -> Feedback flow)
+ * Handle reject all candidates (Stage 1 -> Create history and reset)
  */
-async function handleRejectSelected() {
+async function handleRejectAllCandidates() {
     const taskIndex = AppState.currentTaskIndex;
     const task = AppState.assignment.tasks[taskIndex - 1];
-    
+
+    // Get fresh state
+    const state = await backend.getCurrentState(AppState.currentToken);
+    AppState.currentState = state;
+    const taskState = state.tasks[taskIndex] || {};
+    const rounds = [...(taskState.collabRounds || [])];
+
+    // Find the pending round (or fall back to last round if state was overwritten by autosave)
+    let pendingRound = rounds.find(r => r.status === 'pending');
+    if (!pendingRound && rounds.length > 0) {
+        const lastRound = rounds[rounds.length - 1];
+        if (lastRound.candidates && lastRound.candidates.length > 0) {
+            pendingRound = lastRound;
+        }
+    }
+
+    // Mark as rejected_all
+    if (pendingRound) {
+        pendingRound.status = 'rejected_all';
+    }
+
+    await backend.saveState(AppState.currentToken, taskIndex, {
+        collabRounds: rounds
+    });
+
+    await backend.appendEvent({
+        participant_token: AppState.currentToken,
+        participant_id: AppState.assignment.participantId,
+        task_index: taskIndex,
+        paper_id: task.paperId,
+        paradigm: task.paradigm,
+        round_id: pendingRound?.roundId,
+        event_type: 'reject_all',
+        timestamp: new Date().toISOString()
+    });
+
+    // Get judgment text for history
+    const judgmentInput = document.getElementById('judgment-input');
+    const judgmentText = judgmentInput ? judgmentInput.value.trim() : '';
+
+    // Get all candidates' outputs for display in history (to show what was rejected)
+    const allCandidates = pendingRound?.candidates || [];
+    const candidateOutputs = allCandidates.map(c => c.output);
+    if (candidateOutputs.length === 0) {
+        candidateOutputs.push('[No candidates generated]');
+    }
+
+    // Count completed judgments (accepted + rejected_all)
+    // Note: rounds with 'rejected' status followed by feedback are not complete yet
+    const completedCount = rounds.filter(r => r.status === 'accepted' || r.status === 'rejected_all').length;
+    createJudgmentHistory(completedCount, judgmentText, candidateOutputs, '', 'rejected_all');
+
+    // Hide generated area
+    const generatedArea = document.getElementById('collab-generated-area');
+    if (generatedArea) generatedArea.style.display = 'none';
+
+    // Reset to initial state
+    const collabInputArea = document.getElementById('collab-input-area');
+    if (collabInputArea) collabInputArea.style.display = 'block';
+
+    // Clear and show judgment input
+    if (judgmentInput) judgmentInput.value = '';
+
+    const textSnippetInput = document.getElementById('text-snippet-input');
+    if (textSnippetInput) textSnippetInput.value = '';
+
+    // Show generate button
+    const generateBtn = document.getElementById('generate-btn');
+    if (generateBtn) {
+        generateBtn.style.display = 'inline-block';
+        generateBtn.disabled = false;
+        generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generate" class="generate-icon">';
+    }
+
+    AppState.currentState = await backend.getCurrentState(AppState.currentToken);
+}
+
+/**
+ * Handle refine the selected candidate (Stage 2 -> Feedback flow)
+ */
+async function handleRefineSelected() {
+    const taskIndex = AppState.currentTaskIndex;
+    const task = AppState.assignment.tasks[taskIndex - 1];
+
     // Get fresh state
     const state = await backend.getCurrentState(AppState.currentToken);
     AppState.currentState = state;
@@ -1327,16 +1534,21 @@ async function handleRejectSelected() {
         paper_id: task.paperId,
         paradigm: task.paradigm,
         round_id: pendingRound?.roundId,
-        event_type: 'reject',
+        event_type: 'refine',
         timestamp: new Date().toISOString()
     });
 
-    // Disable Accept/Reject buttons
+    // Disable Accept/Refine/Reject buttons
     const acceptBtn = document.getElementById('accept-selected-btn');
+    const refineBtn = document.getElementById('refine-selected-btn');
     const rejectBtn = document.getElementById('reject-selected-btn');
     if (acceptBtn) {
         acceptBtn.disabled = true;
         acceptBtn.style.opacity = '0.5';
+    }
+    if (refineBtn) {
+        refineBtn.disabled = true;
+        refineBtn.style.opacity = '0.5';
     }
     if (rejectBtn) {
         rejectBtn.disabled = true;
@@ -1345,14 +1557,99 @@ async function handleRejectSelected() {
 
     // Create and show feedback area
     createFeedbackArea('collab-rounds-container');
-    
+
     // Show generate button
     const generateBtn = document.getElementById('generate-btn');
     if (generateBtn) {
         generateBtn.style.display = 'inline-block';
         generateBtn.disabled = false;
-        generateBtn.textContent = 'Generate';
+        generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generate" class="generate-icon">';
     }
+
+    AppState.currentState = await backend.getCurrentState(AppState.currentToken);
+}
+
+/**
+ * Handle reject the selected candidate (Stage 2 -> Directly end judgment)
+ */
+async function handleRejectSelected() {
+    const taskIndex = AppState.currentTaskIndex;
+    const task = AppState.assignment.tasks[taskIndex - 1];
+
+    // Get fresh state
+    const state = await backend.getCurrentState(AppState.currentToken);
+    AppState.currentState = state;
+    const taskState = state.tasks[taskIndex] || {};
+    const rounds = [...(taskState.collabRounds || [])];
+
+    // Find the pending round (or fall back to last round if state was overwritten by autosave)
+    let pendingRound = rounds.find(r => r.status === 'pending');
+    if (!pendingRound && rounds.length > 0) {
+        const lastRound = rounds[rounds.length - 1];
+        if (lastRound.selectedCandidateIndex !== null && lastRound.selectedCandidateIndex !== undefined) {
+            pendingRound = lastRound;
+        }
+    }
+
+    // Mark as rejected_all (same behavior as rejecting all candidates)
+    if (pendingRound) {
+        pendingRound.status = 'rejected_all';
+    }
+
+    await backend.saveState(AppState.currentToken, taskIndex, {
+        collabRounds: rounds
+    });
+
+    await backend.appendEvent({
+        participant_token: AppState.currentToken,
+        participant_id: AppState.assignment.participantId,
+        task_index: taskIndex,
+        paper_id: task.paperId,
+        paradigm: task.paradigm,
+        round_id: pendingRound?.roundId,
+        event_type: 'reject_selected',
+        timestamp: new Date().toISOString()
+    });
+
+    // Get judgment text for history
+    const judgmentInput = document.getElementById('judgment-input');
+    const judgmentText = judgmentInput ? judgmentInput.value.trim() : '';
+
+    // Get the selected candidate's output for display in history
+    const selectedCandidateText = document.getElementById('selected-candidate-text');
+    const selectedOutput = selectedCandidateText ? selectedCandidateText.value.trim() : '[No candidate selected]';
+
+    // Count completed judgments (accepted + rejected_all)
+    const completedCount = rounds.filter(r => r.status === 'accepted' || r.status === 'rejected_all').length;
+    createJudgmentHistory(completedCount, judgmentText, selectedOutput, '', 'rejected_selected');
+
+    // Hide generated area
+    const generatedArea = document.getElementById('collab-generated-area');
+    if (generatedArea) generatedArea.style.display = 'none';
+
+    // Reset to initial state
+    const collabInputArea = document.getElementById('collab-input-area');
+    if (collabInputArea) collabInputArea.style.display = 'block';
+
+    // Clear and show judgment input
+    if (judgmentInput) judgmentInput.value = '';
+
+    const textSnippetInput = document.getElementById('text-snippet-input');
+    if (textSnippetInput) textSnippetInput.value = '';
+
+    // Show generate button
+    const generateBtn = document.getElementById('generate-btn');
+    if (generateBtn) {
+        generateBtn.style.display = 'inline-block';
+        generateBtn.disabled = false;
+        generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generate" class="generate-icon">';
+    }
+
+    // Reset Stage 2 for next use
+    const selectionStage = document.getElementById('candidates-selection-stage');
+    const confirmStage = document.getElementById('candidate-confirm-stage');
+    if (selectionStage) selectionStage.style.display = 'block';
+    if (confirmStage) confirmStage.style.display = 'none';
 
     AppState.currentState = await backend.getCurrentState(AppState.currentToken);
 }
@@ -1399,7 +1696,7 @@ async function handleRegenerate() {
     if (generateBtn) {
         generateBtn.style.display = 'inline-block';
         generateBtn.disabled = false;
-        generateBtn.textContent = 'Generate';
+        generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generate" class="generate-icon">';
     }
     
     // Trigger new generation
@@ -1435,11 +1732,14 @@ function restoreJudgmentHistory(rounds) {
         const lastRound = groupRounds[groupRounds.length - 1];
         const numericJudgmentNum = Number(judgmentNum);
         
-        // Only show completed judgments (accepted or stopped/rejected)
+        // Only show completed judgments (accepted, rejected_all, or stopped/rejected)
         if (lastRound.status === 'pending') continue;
-        
-        // If the last round is rejected, check if it's truly completed
-        if (lastRound.status === 'rejected' && !lastRound.stoppedManually) {
+
+        // rejected_all is always complete - show it
+        if (lastRound.status === 'rejected_all') {
+            // Continue to show this judgment
+        } else if (lastRound.status === 'rejected' && !lastRound.stoppedManually) {
+            // If the last round is rejected, check if it's truly completed
             // If there's a higher judgmentNum, this judgment is implicitly stopped
             if (numericJudgmentNum < maxJudgmentNum) {
                 // Implicitly stopped - user moved on to next judgment
@@ -1462,17 +1762,57 @@ function restoreJudgmentHistory(rounds) {
         let feedbackCount = 1;
         
         for (const round of groupRounds) {
-            // Add expansion
-            if (round.output) {
-                contentHtml += `
-                    <div class="history-item history-expansion">
-                        <div class="history-item-label">Expansion ${expansionCount}:</div>
-                        <div class="history-item-text">${escapeHtml(round.editedOutput || round.output)}</div>
-                    </div>
-                `;
-                expansionCount++;
+            // Add expansion(s)
+            if (round.status === 'rejected_all') {
+                const candidates = round.candidates || [];
+                if (round.selectedCandidateIndex !== null && round.selectedCandidateIndex !== undefined && candidates[round.selectedCandidateIndex]) {
+                    // Reject selected: show only the selected candidate
+                    const expansionText = candidates[round.selectedCandidateIndex].output || '';
+                    if (expansionText) {
+                        contentHtml += `
+                            <div class="history-item history-expansion">
+                                <div class="history-item-label">Expansion:</div>
+                                <div class="history-item-text">${escapeHtml(expansionText)}</div>
+                            </div>
+                        `;
+                        expansionCount++;
+                    }
+                } else if (candidates.length > 0) {
+                    // Reject all: show all candidates that were rejected
+                    candidates.forEach(candidate => {
+                        const expansionText = candidate.output || '';
+                        if (expansionText) {
+                            contentHtml += `
+                                <div class="history-item history-expansion">
+                                    <div class="history-item-label">Expansion ${expansionCount}:</div>
+                                    <div class="history-item-text">${escapeHtml(expansionText)}</div>
+                                </div>
+                            `;
+                            expansionCount++;
+                        }
+                    });
+                } else {
+                    contentHtml += `
+                        <div class="history-item history-expansion">
+                            <div class="history-item-label">Expansion ${expansionCount}:</div>
+                            <div class="history-item-text">[No candidates generated]</div>
+                        </div>
+                    `;
+                    expansionCount++;
+                }
+            } else if (round.output) {
+                const expansionText = round.editedOutput || round.output;
+                if (expansionText) {
+                    contentHtml += `
+                        <div class="history-item history-expansion">
+                            <div class="history-item-label">Expansion:</div>
+                            <div class="history-item-text">${escapeHtml(expansionText)}</div>
+                        </div>
+                    `;
+                    expansionCount++;
+                }
             }
-            
+
             // Add feedback (if rejected and has feedback)
             if (round.status === 'rejected' && round.feedback) {
                 contentHtml += `
@@ -1486,8 +1826,18 @@ function restoreJudgmentHistory(rounds) {
         }
         
         // Determine outcome
-        const outcome = lastRound.status === 'accepted' ? 'Accepted' : 'Rejected';
-        
+        let outcome = 'Rejected';
+        if (lastRound.status === 'accepted') {
+            outcome = 'Accepted';
+        } else if (lastRound.status === 'rejected_all') {
+            // Distinguish "Rejected" (selected candidate) vs "Rejected all" (all candidates)
+            if (lastRound.selectedCandidateIndex !== null && lastRound.selectedCandidateIndex !== undefined) {
+                outcome = 'Rejected';
+            } else {
+                outcome = 'Rejected all';
+            }
+        }
+
         const historyId = 'history-restored-' + judgmentNum;
         const historyElement = document.createElement('div');
         historyElement.className = 'judgment-history-container collapsed';
@@ -1510,6 +1860,9 @@ function restoreJudgmentHistory(rounds) {
             historyElement.classList.toggle('collapsed');
         });
     }
+
+    // Update history count in wrapper header
+    updateHistoryCount();
 }
 
 /**
@@ -1518,18 +1871,26 @@ function restoreJudgmentHistory(rounds) {
 function createJudgmentHistory(judgmentNum, judgmentText, initialExpansion, finalText, outcome) {
     const historyContainer = document.getElementById('judgment-history-container');
     if (!historyContainer) return;
-    
+
     // Build content in order: judgment → expansion 1 → feedback 1 → expansion 2 → feedback 2...
     let contentHtml = `
         <div class="history-item">
             <div class="history-item-label">Judgment:</div>
             <div class="history-item-text">${escapeHtml(judgmentText)}</div>
         </div>
-        <div class="history-item history-expansion">
-            <div class="history-item-label">Expansion 1:</div>
-            <div class="history-item-text">${escapeHtml(initialExpansion)}</div>
-        </div>
     `;
+
+    // Handle initial expansion - can be a string or an array of strings
+    const expansions = Array.isArray(initialExpansion) ? initialExpansion : [initialExpansion];
+    expansions.forEach((expansion, index) => {
+        const expansionLabel = expansions.length === 1 ? 'Expansion' : `Expansion ${index + 1}`;
+        contentHtml += `
+        <div class="history-item history-expansion">
+            <div class="history-item-label">${expansionLabel}:</div>
+            <div class="history-item-text">${escapeHtml(expansion)}</div>
+        </div>
+        `;
+    });
     
     // Get dynamic rounds content in order
     const roundsContainer = document.getElementById('collab-rounds-container');
@@ -1574,8 +1935,17 @@ function createJudgmentHistory(judgmentNum, judgmentText, initialExpansion, fina
     }
     
     const historyId = 'history-' + Date.now();
-    const outcomeText = outcome === 'accepted' ? 'Accepted' : 'Rejected';
-    
+    let outcomeText = 'Rejected';
+    if (outcome === 'accepted') {
+        outcomeText = 'Accepted';
+    } else if (outcome === 'rejected_selected') {
+        outcomeText = 'Rejected';
+    } else if (outcome === 'rejected_all') {
+        outcomeText = 'Rejected all';
+    } else if (outcome === 'stopped') {
+        outcomeText = 'Stopped';
+    }
+
     const historyElement = document.createElement('div');
     historyElement.className = 'judgment-history-container collapsed';
     historyElement.id = historyId;
@@ -1590,12 +1960,27 @@ function createJudgmentHistory(judgmentNum, judgmentText, initialExpansion, fina
     `;
     
     historyContainer.appendChild(historyElement);
-    
+
     // Add toggle event listener
     const header = historyElement.querySelector('.judgment-history-header');
     header.addEventListener('click', () => {
         historyElement.classList.toggle('collapsed');
     });
+
+    // Update history count in wrapper header
+    updateHistoryCount();
+}
+
+/**
+ * Update the history count badge in the History wrapper header
+ */
+function updateHistoryCount() {
+    const historyContainer = document.getElementById('judgment-history-container');
+    const countSpan = document.querySelector('.history-wrapper-header .history-count');
+    if (historyContainer && countSpan) {
+        const count = historyContainer.children.length;
+        countSpan.textContent = count > 0 ? `(${count})` : '';
+    }
 }
 
 /**
@@ -1623,25 +2008,22 @@ function createFeedbackArea(containerId) {
         <button class="close-feedback-btn" title="Cancel feedback">&times;</button>
         <div class="collab-input-group">
             <label>Feedback for revision (optional):</label>
-            <textarea class="feedback-input" rows="2"></textarea>
-        </div>
-        <div class="reject-actions">
-            <button class="btn btn-primary feedback-generate-btn">Generate</button>
-            <button class="btn btn-secondary feedback-stop-btn">Stop</button>
+            <div class="feedback-input-row">
+                <textarea class="feedback-input" rows="2"></textarea>
+                <button class="feedback-generate-btn generate-icon-btn"><img src="up-arrow.png" alt="Generate" class="generate-icon"></button>
+            </div>
         </div>
     `;
-    
+
     container.appendChild(feedbackArea);
-    
+
     // Add event listeners
     const closeBtn = feedbackArea.querySelector('.close-feedback-btn');
     const generateBtn = feedbackArea.querySelector('.feedback-generate-btn');
-    const stopBtn = feedbackArea.querySelector('.feedback-stop-btn');
     const feedbackInput = feedbackArea.querySelector('.feedback-input');
-    
+
     closeBtn.addEventListener('click', () => handleCloseDynamicFeedback(feedbackId));
     generateBtn.addEventListener('click', () => handleDynamicGenerate(feedbackId));
-    stopBtn.addEventListener('click', () => handleDynamicStop(feedbackId));
     
     // Add Enter key shortcut for generate
     if (feedbackInput) {
@@ -1691,12 +2073,17 @@ function reEnableLastAcceptRejectButtons() {
         }
     }
     
-    // Otherwise re-enable Stage 2 Accept/Reject buttons
+    // Otherwise re-enable Stage 2 Accept/Refine/Reject buttons
     const acceptSelectedBtn = document.getElementById('accept-selected-btn');
+    const refineSelectedBtn = document.getElementById('refine-selected-btn');
     const rejectSelectedBtn = document.getElementById('reject-selected-btn');
     if (acceptSelectedBtn) {
         acceptSelectedBtn.disabled = false;
         acceptSelectedBtn.style.opacity = '1';
+    }
+    if (refineSelectedBtn) {
+        refineSelectedBtn.disabled = false;
+        refineSelectedBtn.style.opacity = '1';
     }
     if (rejectSelectedBtn) {
         rejectSelectedBtn.disabled = false;
@@ -1722,7 +2109,7 @@ async function handleDynamicGenerate(feedbackId) {
     const stopBtn = feedbackArea.querySelector('.feedback-stop-btn');
     if (generateBtn) {
         generateBtn.disabled = true;
-        generateBtn.textContent = 'Generating...';
+        generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generating" class="generate-icon">';
     }
     if (stopBtn) stopBtn.disabled = true;
     
@@ -1756,10 +2143,10 @@ async function handleDynamicGenerate(feedbackId) {
         );
 
         // Add new round
-        const acceptedCount = rounds.filter(r => r.status === 'accepted').length;
+        const completedCount = rounds.filter(r => r.status === 'accepted' || r.status === 'rejected_all').length;
         const newRound = {
             roundId: rounds.length + 1,
-            judgmentNum: acceptedCount + 1,
+            judgmentNum: completedCount + 1,
             judgment: judgment,
             feedback: feedback,
             output: modelOutput,
@@ -1787,7 +2174,7 @@ async function handleDynamicGenerate(feedbackId) {
         // Re-enable buttons on error
         if (generateBtn) {
             generateBtn.disabled = false;
-            generateBtn.textContent = 'Generate';
+            generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generate" class="generate-icon">';
         }
         if (stopBtn) stopBtn.disabled = false;
         if (feedbackInput) feedbackInput.readOnly = false;
@@ -1854,8 +2241,8 @@ async function handleDynamicAccept(expansionId) {
     const rounds = [...(taskState.collabRounds || [])];
     
     // Get the initial expansion from the first round of this judgment
-    const acceptedCount = rounds.filter(r => r.status === 'accepted').length;
-    const currentJudgmentNum = acceptedCount + 1;
+    const completedCount = rounds.filter(r => r.status === 'accepted' || r.status === 'rejected_all').length;
+    const currentJudgmentNum = completedCount + 1;
     const currentJudgmentRounds = rounds.filter(r => r.judgmentNum === currentJudgmentNum);
     
     let initialExpansion = '';
@@ -1909,8 +2296,8 @@ async function handleDynamicAccept(expansionId) {
     });
 
     // Create judgment history before clearing (note: createJudgmentHistory will clear collab-rounds-container)
-    const finalAcceptedCount = rounds.filter(r => r.status === 'accepted').length;
-    createJudgmentHistory(finalAcceptedCount, judgmentText, initialExpansion, editedOutput, 'accepted');
+    // Use currentJudgmentNum which was already calculated correctly above
+    createJudgmentHistory(currentJudgmentNum, judgmentText, initialExpansion, editedOutput, 'accepted');
     
     // Hide original generated area
     const generatedArea = document.getElementById('collab-generated-area');
@@ -1922,12 +2309,17 @@ async function handleDynamicAccept(expansionId) {
     if (selectionStage) selectionStage.style.display = 'block';
     if (confirmStage) confirmStage.style.display = 'none';
     
-    // Re-enable Accept/Reject buttons for next use
+    // Re-enable Accept/Refine/Reject buttons for next use
     const acceptBtn = document.getElementById('accept-selected-btn');
+    const refineBtn = document.getElementById('refine-selected-btn');
     const rejectBtn = document.getElementById('reject-selected-btn');
     if (acceptBtn) {
         acceptBtn.disabled = false;
         acceptBtn.style.opacity = '1';
+    }
+    if (refineBtn) {
+        refineBtn.disabled = false;
+        refineBtn.style.opacity = '1';
     }
     if (rejectBtn) {
         rejectBtn.disabled = false;
@@ -1937,11 +2329,14 @@ async function handleDynamicAccept(expansionId) {
     // Update judgment label for next judgment
     const judgmentLabel = document.getElementById('judgment-label');
     if (judgmentLabel) {
-        judgmentLabel.textContent = `Judgment ${finalAcceptedCount + 1}:`;
+        judgmentLabel.textContent = 'Judgment:';
     }
 
     // Clear and show judgment input for next judgment
     if (judgmentInput) judgmentInput.value = '';
+    
+    const textSnippetInput = document.getElementById('text-snippet-input');
+    if (textSnippetInput) textSnippetInput.value = '';
     
     const collabInputArea = document.getElementById('collab-input-area');
     if (collabInputArea) collabInputArea.style.display = 'block';
@@ -1950,7 +2345,7 @@ async function handleDynamicAccept(expansionId) {
     if (generateBtn) {
         generateBtn.style.display = 'inline-block';
         generateBtn.disabled = false;
-        generateBtn.textContent = 'Generate';
+        generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generate" class="generate-icon">';
     }
 
     AppState.currentState = await backend.getCurrentState(AppState.currentToken);
@@ -2029,10 +2424,10 @@ async function handleDynamicStop(feedbackId) {
     AppState.currentState = state;
     const taskState = state.tasks[taskIndex] || {};
     const rounds = [...(taskState.collabRounds || [])];
-    const acceptedCount = rounds.filter(r => r.status === 'accepted').length;
-    
+    const completedCount = rounds.filter(r => r.status === 'accepted' || r.status === 'rejected_all').length;
+
     // Find the current judgment's rounds (all rounds with the same judgmentNum)
-    const currentJudgmentNum = acceptedCount + 1;
+    const currentJudgmentNum = completedCount + 1;
     const currentJudgmentRounds = rounds.filter(r => r.judgmentNum === currentJudgmentNum);
     
     // Get the first expansion from this judgment (from selected candidate or first round's output)
@@ -2073,9 +2468,13 @@ async function handleDynamicStop(feedbackId) {
         event_type: 'stop',
         timestamp: new Date().toISOString()
     });
-    
+
+    // Determine outcome: if any round in current judgment was rejected, show "Rejected", otherwise "Stopped"
+    const hasRejectedRound = currentJudgmentRounds.some(r => r.status === 'rejected');
+    const outcome = hasRejectedRound ? 'rejected' : 'stopped';
+
     // Create judgment history using the CURRENT judgment number (not acceptedCount + 1 for next)
-    createJudgmentHistory(currentJudgmentNum, judgmentText, initialExpansion, '', 'stopped');
+    createJudgmentHistory(currentJudgmentNum, judgmentText, initialExpansion, '', outcome);
     
     // Hide original generated area
     const generatedArea = document.getElementById('collab-generated-area');
@@ -2087,12 +2486,17 @@ async function handleDynamicStop(feedbackId) {
     if (selectionStage) selectionStage.style.display = 'block';
     if (confirmStage) confirmStage.style.display = 'none';
     
-    // Re-enable Accept/Reject buttons for next use
+    // Re-enable Accept/Refine/Reject buttons for next use
     const acceptBtn = document.getElementById('accept-selected-btn');
+    const refineBtn = document.getElementById('refine-selected-btn');
     const rejectBtn = document.getElementById('reject-selected-btn');
     if (acceptBtn) {
         acceptBtn.disabled = false;
         acceptBtn.style.opacity = '1';
+    }
+    if (refineBtn) {
+        refineBtn.disabled = false;
+        refineBtn.style.opacity = '1';
     }
     if (rejectBtn) {
         rejectBtn.disabled = false;
@@ -2106,18 +2510,21 @@ async function handleDynamicStop(feedbackId) {
     // Clear judgment input
     if (judgmentInput) judgmentInput.value = '';
     
+    const textSnippetInput = document.getElementById('text-snippet-input');
+    if (textSnippetInput) textSnippetInput.value = '';
+    
     // Show generate button
     const generateBtn = document.getElementById('generate-btn');
     if (generateBtn) {
         generateBtn.style.display = 'inline-block';
         generateBtn.disabled = false;
-        generateBtn.textContent = 'Generate';
+        generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generate" class="generate-icon">';
     }
     
     // Update judgment label for NEXT judgment
     const judgmentLabel = document.getElementById('judgment-label');
     if (judgmentLabel) {
-        judgmentLabel.textContent = `Judgment ${currentJudgmentNum + 1}:`;
+        judgmentLabel.textContent = 'Judgment:';
     }
 }
 
@@ -2203,6 +2610,9 @@ async function handleAcceptRound(roundId) {
     // Clear judgment input
     const judgmentInput = document.getElementById('judgment-input');
     if (judgmentInput) judgmentInput.value = '';
+
+    const textSnippetInput = document.getElementById('text-snippet-input');
+    if (textSnippetInput) textSnippetInput.value = '';
 
     // Show generate button for next round
     const generateBtn = document.getElementById('generate-btn');
@@ -2307,11 +2717,8 @@ async function autosaveDraft() {
     const editor = document.getElementById('review-editor');
     const taskIndex = AppState.currentTaskIndex;
     const task = AppState.assignment.tasks[taskIndex - 1];
-    const state = AppState.currentState;
-    const taskState = state.tasks[taskIndex] || {};
-    
+
     const draftText = editor.value;
-    const collabRounds = taskState.collabRounds || [];
 
     // Save judgment for collaborative mode
     let judgment = '';
@@ -2320,10 +2727,13 @@ async function autosaveDraft() {
         judgment = judgmentInput ? judgmentInput.value : '';
     }
 
+    // Note: Do NOT save collabRounds here. collabRounds are managed by
+    // the specific handler functions (generate, accept, reject, refine).
+    // Saving them from cached AppState.currentState can overwrite fresh
+    // data due to race conditions.
     try {
         await backend.saveState(AppState.currentToken, taskIndex, {
             draftText,
-            collabRounds,
             judgment
         });
         

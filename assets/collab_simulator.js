@@ -47,10 +47,11 @@ class CollabSimulator {
      * @param {Array<Object>} previousRounds - 之前的轮次历史
      * @param {string} judgment - 用户的判断
      * @param {string} feedback - 上一轮的反馈（如果被拒绝）
+     * @param {string} textSnippet - 用户从 paper 中复制的文本片段
      * @param {number} temperature - 生成温度 (默认 0.7)
      * @returns {Promise<string>} 生成的 review
      */
-    static async generateRound(paperId, previousRounds = [], judgment = '', feedback = '', temperature = 0.7) {
+    static async generateRound(paperId, previousRounds = [], judgment = '', feedback = '', textSnippet = '', temperature = 0.7) {
         // 从本地读取 paper 内容
         const paperContent = await this.getPaperContent(paperId);
         if (!paperContent) {
@@ -59,46 +60,58 @@ class CollabSimulator {
 
         // 根据配置选择调用方式
         if (typeof CONFIG !== 'undefined' && CONFIG.BACKEND_TYPE === 'supabase') {
-            return await this.callEdgeFunction(paperId, paperContent, previousRounds, judgment, feedback, temperature);
+            return await this.callEdgeFunction(paperId, paperContent, previousRounds, judgment, feedback, textSnippet, temperature);
         } else {
-            return await this.simulateGeneration(paperId, paperContent, previousRounds, judgment, feedback, temperature);
+            return await this.simulateGeneration(paperId, paperContent, previousRounds, judgment, feedback, textSnippet, temperature);
         }
     }
 
     /**
-     * 生成多个 candidates（并行调用）
-     * 
+     * 生成多个 candidates
+     * Supabase 模式：一次 API 调用生成两个有区分度的 candidates
+     * 本地模式：并行调用生成多个 candidates
+     *
      * @param {string} paperId - 论文ID
      * @param {Array<Object>} previousRounds - 之前的轮次历史
      * @param {string} judgment - 用户的判断
      * @param {string} feedback - 上一轮的反馈（如果被拒绝）
-     * @param {Array<number>} temperatures - 温度数组（默认从 CONFIG 读取）
+     * @param {string} textSnippet - 用户从 paper 中复制的文本片段
+     * @param {Array<number>} temperatures - 温度数组（本地模式使用，默认从 CONFIG 读取）
      * @returns {Promise<Array<{output: string, temperature: number}>>} candidates 数组
      */
-    static async generateMultipleCandidates(paperId, previousRounds = [], judgment = '', feedback = '', temperatures = null) {
-        // 使用配置中的 temperatures 或默认值
+    static async generateMultipleCandidates(paperId, previousRounds = [], judgment = '', feedback = '', textSnippet = '', temperatures = null) {
+        // 从本地读取 paper 内容
+        const paperContent = await this.getPaperContent(paperId);
+        if (!paperContent) {
+            throw new Error(`Paper ${paperId} not found in papers.json`);
+        }
+
+        // Supabase 模式：一次调用生成两个 candidates
+        if (typeof CONFIG !== 'undefined' && CONFIG.BACKEND_TYPE === 'supabase') {
+            return await this.callEdgeFunction(paperId, paperContent, previousRounds, judgment, feedback, textSnippet);
+        }
+
+        // 本地模式：并行调用生成多个 candidates
         const temps = temperatures || (typeof CONFIG !== 'undefined' && CONFIG.CANDIDATE_TEMPERATURES) || [0.3, 0.9];
-        
-        // 并行调用生成
         const promises = temps.map(async (temp) => {
-            const output = await this.generateRound(paperId, previousRounds, judgment, feedback, temp);
+            const output = await this.simulateGeneration(paperId, paperContent, previousRounds, judgment, feedback, textSnippet, temp);
             return { output, temperature: temp };
         });
-        
+
         return Promise.all(promises);
     }
 
     /**
      * 调用 Supabase Edge Function（生产环境）
      */
-    static async callEdgeFunction(paperId, paperContent, previousRounds, judgment, feedback, temperature = 0.7) {
+    static async callEdgeFunction(paperId, paperContent, previousRounds, judgment, feedback, textSnippet = '', temperature = 0.7) {
         if (typeof CONFIG === 'undefined' || !CONFIG.SUPABASE_URL) {
             throw new Error('请在 config.js 中配置 SUPABASE_URL');
         }
 
         const url = CONFIG.EDGE_FUNCTION_URL;
         console.log('Calling Edge Function:', url);
-        console.log('Request payload:', { paperId, paperContentLength: paperContent?.length, previousRounds, judgment, feedback, temperature });
+        console.log('Request payload:', { paperId, paperContentLength: paperContent?.length, previousRounds, judgment, feedback, textSnippet, temperature });
         
         try {
             const response = await fetch(url, {
@@ -113,6 +126,7 @@ class CollabSimulator {
                     previousRounds,
                     judgment,
                     feedback,
+                    textSnippet,
                     temperature
                 })
             });
@@ -134,10 +148,15 @@ class CollabSimulator {
             }
 
             const data = JSON.parse(responseText);
-            if (!data.review) {
-                throw new Error('Response missing review field');
+            if (!data.candidates || !Array.isArray(data.candidates)) {
+                throw new Error('Response missing candidates array');
             }
-            return data.review;
+            // 返回格式：[{text: "...", temperature: 0.7}, ...]
+            // 转换为前端期望的格式：[{output: "...", temperature: 0.7}, ...]
+            return data.candidates.map(c => ({
+                output: c.text,
+                temperature: c.temperature
+            }));
         } catch (error) {
             console.error('Edge Function 调用失败:', error);
             throw error;
@@ -147,7 +166,7 @@ class CollabSimulator {
     /**
      * 本地模拟生成（开发/测试用）
      */
-    static async simulateGeneration(paperId, paperContent, previousRounds, judgment, feedback, temperature = 0.7) {
+    static async simulateGeneration(paperId, paperContent, previousRounds, judgment, feedback, textSnippet = '', temperature = 0.7) {
         // 模拟 API 延迟
         await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1000));
 
@@ -161,7 +180,7 @@ class CollabSimulator {
 
 Based on paper "${paperId}" and your judgment:
 "${judgment}"
-
+${textSnippet ? `\nWith text snippet from paper:\n"${textSnippet}"\n` : ''}
 Here is the generated peer review:
 
 **Summary:**
@@ -191,7 +210,7 @@ The paper makes a solid contribution to the field, though some aspects could be 
 
 Based on your ${feedback ? 'feedback' : 'new judgment'}:
 "${feedback || judgment}"
-
+${textSnippet ? `\nWith text snippet from paper:\n"${textSnippet}"\n` : ''}
 Here is the refined peer review:
 
 **Revised Summary:**
