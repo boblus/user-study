@@ -483,7 +483,7 @@ function getInstructionsHTML(paradigm, isFullPage) {
             <p>In this task, you will produce a review by <strong>post-editing an LLM-generated draft</strong>. Please read the instructions carefully.</p>
             <br>
             <${headingTag}>1. Read the paper first</${headingTag}>
-            <p>Please read the assigned paper carefully before starting the timed writing phase.</p>
+            <p>Please read the assigned paper carefully before starting the timed writing phase. We recommend skimming once and then reading in depth before starting the timed phase.</p>
             <br>
             <${headingTag}>2. Sketch your intent before seeing the draft</${headingTag}>
             <p>Before we show you the LLM-generated draft, please write a brief list of the key points you intend to raise in your review. This sketch should include the main strengths and weaknesses you want to mention. <strong>This step is required</strong> and helps us capture your initial intent.</p>
@@ -516,46 +516,43 @@ function getInstructionsHTML(paradigm, isFullPage) {
             <p>In this task, you will produce a review by <strong>collaborating with a review generation system</strong>. Please read the instructions carefully.</p>
             <br>
             <${headingTag}>1. Read the paper first</${headingTag}>
-            <p>Please read the assigned paper carefully before starting the timed writing phase.</p>
+            <p>Please read the assigned paper carefully before starting the timed writing phase. We recommend skimming once and then reading in depth before starting the timed phase.</p>
             <br>
             <${headingTag}>2. Start the timed writing phase</${headingTag}>
-            <p>Once you have finished reading, click <strong>Start writing</strong>. Timing begins at this moment. Please try to reserve at least <strong>120 minutes</strong> of uninterrupted time for writing, since we would like to record the completion time. If you need to step away, please click <strong>Pause</strong>.</p>
+            <p>Once you have finished reading, click <img src="icons/start-writing.png" alt="Start writing" class="btn-icon">. Timing begins at this moment. Please try to reserve at least 120 minutes of uninterrupted time for writing, since we would like to record the completion time. If you need to step away, please click <img src="icons/pause.png" alt="Pause" class="btn-icon">.</p>
             <br>
             <${headingTag}>3. Collaborate with the system</${headingTag}>
-            <p>You will write the review by iterating over <strong>judgement</strong> → <strong>generation</strong> → <strong>selection</strong> → <strong>feedback/edit</strong> cycles.</p>
+            <p>You will write the review by iterating over multiple <strong>judgement</strong> → <strong>generation</strong> → <strong>selection</strong> cycles.</p>
             <br>
             <ul>
-                <li><p><strong>Step A: Enter a judgment (one at a time) and provide context (optional, if needed)</strong></p>
+                <li><p><strong>Step A: Enter a judgment (one at a time)</strong></p>
                 <ul>
                     <li><p>In the Judgement block, write one strength/weakness point you want to raise in the review (e.g., "Clarity is a strength").</p></li>
-                    <li><p>If your judgment refers to a specific sentence/paragraph/section of the paper, paste it in the Text snippet block to provide context to the system.</p></li>
+                    <li><p>If your judgment refers to a specific sentence/paragraph/section of the paper, you may paste it in the Text snippet block to provide context to the system.</p></li>
                 </ul></li>
                 <li><p><strong>Step B: Generate candidates</strong></p>
-                <p>After you submit your judgment, the system will generate 2 candidate review comments.</p></li>
-                <li><p><strong>Step C: Choose and refine</strong></p>
-                <p>Select the candidate you prefer. You may then edit the selected review to better reflect your intent.</p></li>
-                <li><p><strong>Step D: Accept or reject</strong></p>
+                <p>After you submit your judgment, click <img src="icons/up-arrow.png" alt="Generate" class="btn-icon"> to generate review comments. The system will generate 2 candidate review comments.</p></li>
+                <li><p><strong>Step C: Accept, refine or reject</strong></p>
                 <ul>
-                    <li><p>If the candidate is satisfactory, <strong>accept</strong> it and move on to the next judgment.</p></li>
-                    <li><p>If it is not satisfactory, you may <strong>provide feedback</strong>. The system will then generate a new candidate based on your feedback.</p></li>
-                    <li><p>If further interaction is not helpful for a particular point, you may <strong>stop iterating</strong> on that point and proceed to the next judgment.</p></li>
+                    <li><p>If the generated comment is satisfactory, click <img src="icons/accept.png" alt="Accept" class="btn-icon"> and move on to the next judgment.</p></li>
+                    <li><p>If the generated comment is not satisfactory, click <img src="icons/refine.png" alt="Refine" class="btn-icon"> to provide feedback and let the system generate a new candidate based on your feedback.</p></li>
+                    <li><p>If further interaction is not helpful for a particular point, click <img src="icons/reject.png" alt="Reject" class="btn-icon"> to stop iterating on that point and proceed to the next judgment.</p></li>
                 </ul></li>
             </ul>
-            <p>You may repeat steps A-D <strong>multiple rounds</strong> until you have covered the strengths, weakness, and suggestions you want to include.</p>
+            <p>You may <strong>repeat steps A-C multiple rounds</strong> until you have covered the strengths, weakness, and suggestions you want to include.</p>
             <br>
             <${headingTag}>4. Output</${headingTag}>
-            <p>Please output only the <strong>Strengths</strong>, <strong>Weaknesses</strong>, and <strong>Comments/Suggestions/Typos</strong> (if there are any) sections. You do <strong>not</strong> need to write a paper summary or provide review scores.</p>
+            <p>Please output only the <strong>Strengths</strong>, <strong>Weaknesses</strong>, and <strong>Comments/Suggestions/Typos</strong> (if there are any) sections. You do <strong>not</strong> need to write a paper summary or provide review scores. Please follow the current ARR review guidelines as a reference:</p>
             <br>
-            <${headingTag}>5. Review guidelines</${headingTag}>
             <ul>
                 <li><strong>Summary of Strengths:</strong> What are the major reasons to publish this paper at a selective *ACL venue? These could include novel and useful methodology, insightful empirical results or theoretical analysis, clear organization of related literature, or any other reason why interested readers of *ACL papers may find the paper useful.</li>
                 <li><strong>Summary of Weaknesses:</strong> What are the concerns that you have about the paper that would cause you to favor prioritizing other high-quality papers that are also under consideration for publication? These could include concerns about correctness of the results or argumentation, limited perceived impact of the methods or findings (note that impact can be significant both in broad or in narrow sub-fields), lack of clarity in exposition, or any other reason why interested readers of *ACL papers may gain less from this paper than they would from other papers under consideration. Where possible, please number your concerns so authors may respond to them individually.</li>
                 <li><strong>Comments/Suggestions/Typos:</strong> If you have any comments to the authors about how they may improve their paper, other than addressing the concerns above, please list them here.</li>
             </ul>
-            <${headingTag}>6. Submit</${headingTag}>
-            <p>When you are satisfied with the final review, click <strong>Submit</strong>.</p>
+            <${headingTag}>5. Submit</${headingTag}>
+            <p>When you are satisfied with the final review, click <img src="icons/submit.png" alt="Submit" class="btn-icon">.</p>
             <br>
-            <${headingTag}>7. Post-task questionnaire</${headingTag}>
+            <${headingTag}>6. Post-task questionnaire</${headingTag}>
             <p>After submitting, please complete a short questionnaire.</p>
         `;
     }
@@ -887,7 +884,7 @@ async function renderTask() {
                 if (generateBtn) {
                     generateBtn.style.display = 'inline-block';
                     generateBtn.disabled = false;
-                    generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generate" class="generate-icon">';
+                    generateBtn.innerHTML = '<img src="icons/up-arrow.png" alt="Generate" class="generate-icon">';
                 }
             } else {
                 // Ready for new judgment input
@@ -898,7 +895,7 @@ async function renderTask() {
                 if (generateBtn) {
                     generateBtn.style.display = 'inline-block';
                     generateBtn.disabled = false;
-                    generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generate" class="generate-icon">';
+                    generateBtn.innerHTML = '<img src="icons/up-arrow.png" alt="Generate" class="generate-icon">';
                 }
             }
         } else {
@@ -1144,7 +1141,7 @@ async function handleGenerate() {
     const generateBtn = document.getElementById('generate-btn');
     if (generateBtn) {
         generateBtn.disabled = true;
-        generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generating" class="generate-icon">';
+        generateBtn.innerHTML = '<img src="icons/up-arrow.png" alt="Generating" class="generate-icon">';
     }
 
     try {
@@ -1220,7 +1217,7 @@ async function handleGenerate() {
         // Re-enable generate button on error
         if (generateBtn) {
             generateBtn.disabled = false;
-            generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generate" class="generate-icon">';
+            generateBtn.innerHTML = '<img src="icons/up-arrow.png" alt="Generate" class="generate-icon">';
         }
     }
 }
@@ -1415,7 +1412,7 @@ async function handleAcceptSelected() {
     if (generateBtn) {
         generateBtn.style.display = 'inline-block';
         generateBtn.disabled = false;
-        generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generate" class="generate-icon">';
+        generateBtn.innerHTML = '<img src="icons/up-arrow.png" alt="Generate" class="generate-icon">';
     }
 
     AppState.currentState = await backend.getCurrentState(AppState.currentToken);
@@ -1498,7 +1495,7 @@ async function handleRejectAllCandidates() {
     if (generateBtn) {
         generateBtn.style.display = 'inline-block';
         generateBtn.disabled = false;
-        generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generate" class="generate-icon">';
+        generateBtn.innerHTML = '<img src="icons/up-arrow.png" alt="Generate" class="generate-icon">';
     }
 
     AppState.currentState = await backend.getCurrentState(AppState.currentToken);
@@ -1563,7 +1560,7 @@ async function handleRefineSelected() {
     if (generateBtn) {
         generateBtn.style.display = 'inline-block';
         generateBtn.disabled = false;
-        generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generate" class="generate-icon">';
+        generateBtn.innerHTML = '<img src="icons/up-arrow.png" alt="Generate" class="generate-icon">';
     }
 
     AppState.currentState = await backend.getCurrentState(AppState.currentToken);
@@ -1642,7 +1639,7 @@ async function handleRejectSelected() {
     if (generateBtn) {
         generateBtn.style.display = 'inline-block';
         generateBtn.disabled = false;
-        generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generate" class="generate-icon">';
+        generateBtn.innerHTML = '<img src="icons/up-arrow.png" alt="Generate" class="generate-icon">';
     }
 
     // Reset Stage 2 for next use
@@ -1696,7 +1693,7 @@ async function handleRegenerate() {
     if (generateBtn) {
         generateBtn.style.display = 'inline-block';
         generateBtn.disabled = false;
-        generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generate" class="generate-icon">';
+        generateBtn.innerHTML = '<img src="icons/up-arrow.png" alt="Generate" class="generate-icon">';
     }
     
     // Trigger new generation
@@ -2010,7 +2007,7 @@ function createFeedbackArea(containerId) {
             <label>Feedback for revision (optional):</label>
             <div class="feedback-input-row">
                 <textarea class="feedback-input" rows="2"></textarea>
-                <button class="feedback-generate-btn generate-icon-btn"><img src="up-arrow.png" alt="Generate" class="generate-icon"></button>
+                <button class="feedback-generate-btn generate-icon-btn"><img src="icons/up-arrow.png" alt="Generate" class="generate-icon"></button>
             </div>
         </div>
     `;
@@ -2109,7 +2106,7 @@ async function handleDynamicGenerate(feedbackId) {
     const stopBtn = feedbackArea.querySelector('.feedback-stop-btn');
     if (generateBtn) {
         generateBtn.disabled = true;
-        generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generating" class="generate-icon">';
+        generateBtn.innerHTML = '<img src="icons/up-arrow.png" alt="Generating" class="generate-icon">';
     }
     if (stopBtn) stopBtn.disabled = true;
     
@@ -2174,7 +2171,7 @@ async function handleDynamicGenerate(feedbackId) {
         // Re-enable buttons on error
         if (generateBtn) {
             generateBtn.disabled = false;
-            generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generate" class="generate-icon">';
+            generateBtn.innerHTML = '<img src="icons/up-arrow.png" alt="Generate" class="generate-icon">';
         }
         if (stopBtn) stopBtn.disabled = false;
         if (feedbackInput) feedbackInput.readOnly = false;
@@ -2345,7 +2342,7 @@ async function handleDynamicAccept(expansionId) {
     if (generateBtn) {
         generateBtn.style.display = 'inline-block';
         generateBtn.disabled = false;
-        generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generate" class="generate-icon">';
+        generateBtn.innerHTML = '<img src="icons/up-arrow.png" alt="Generate" class="generate-icon">';
     }
 
     AppState.currentState = await backend.getCurrentState(AppState.currentToken);
@@ -2518,7 +2515,7 @@ async function handleDynamicStop(feedbackId) {
     if (generateBtn) {
         generateBtn.style.display = 'inline-block';
         generateBtn.disabled = false;
-        generateBtn.innerHTML = '<img src="up-arrow.png" alt="Generate" class="generate-icon">';
+        generateBtn.innerHTML = '<img src="icons/up-arrow.png" alt="Generate" class="generate-icon">';
     }
     
     // Update judgment label for NEXT judgment

@@ -1226,6 +1226,12 @@ ol li {
     border-radius: 4px;
 }
 
+/* 内联按钮图标：与正文文字对齐 */
+.btn-icon {
+    height: 1.2em;
+    vertical-align: top;
+}
+
 /* 响应式设计 */
 @media (max-width: 768px) {
     .task-container {
