@@ -531,7 +531,7 @@ function getInstructionsHTML(paradigm, isFullPage) {
                     <li><p>If your judgment refers to a specific sentence/paragraph/section of the paper, you may paste it in the Text snippet block to provide context to the system.</p></li>
                 </ul></li>
                 <li><p><strong>Step B: Generate candidates</strong></p>
-                <p>After you submit your judgment, click <img src="icons/up-arrow.png" alt="Generate" class="btn-icon"> to generate review comments. The system will generate 2 candidate review comments.</p></li>
+                <p>After you submit your judgment, click <img src="icons/up-arrow.png" alt="Generate" class="btn-icon"> to generate review comments. The system will generate 2 candidate review comments. Since the system sends a real-time request, it may take a few seconds to respond.</p></li>
                 <li><p><strong>Step C: Accept, refine or reject</strong></p>
                 <ul>
                     <li><p>If the generated comment is satisfactory, click <img src="icons/accept.png" alt="Accept" class="btn-icon"> and move on to the next judgment.</p></li>
