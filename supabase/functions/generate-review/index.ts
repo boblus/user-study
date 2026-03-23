@@ -28,7 +28,7 @@ const API_CONFIGS: Record<string, { baseUrl: string; model: string }> = {
   },
   cerebras: {
     baseUrl: "https://api.cerebras.ai/v1",
-    model: "gpt-oss-120b",
+    model: "llama3.1-8b",
   },
 }
 
@@ -85,7 +85,6 @@ async function callLLM(systemPrompt: string, userPrompt: string, temperature: nu
     requestBody.reasoning_effort = 'medium'
   } else if (API_VERSION === 'cerebras') {
     requestBody.max_completion_tokens = 500
-    requestBody.temperature = temperature
     requestBody.seed = seed
     requestBody.logprobs = true
     requestBody.top_logprobs = 10
@@ -219,9 +218,9 @@ CANDIDATE 3: [expansion]`
   }
 
   const candidates = [
-    { text: candidate1Match[1].trim(), temperature },
-    { text: candidate2Match[1].trim(), temperature },
-    { text: candidate3Match[1].trim(), temperature }
+    { text: cleanText(candidate1Match[1]), temperature },
+    { text: cleanText(candidate2Match[1]), temperature },
+    { text: cleanText(candidate3Match[1]), temperature }
   ]
 
   const responseBody: Record<string, any> = { candidates }
@@ -235,6 +234,15 @@ CANDIDATE 3: [expansion]`
     JSON.stringify(responseBody),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
+}
+
+// 清理模型输出中多余的 markdown 格式符号（**）
+function cleanText(text: string): string {
+  return text
+    .replace(/^\s*\*+\s*/gm, '')                      // 去掉每行开头的 **
+    .replace(/\s*\*+\s*$/gm, '')                      // 去掉每行结尾的 **
+    .replace(/^\s*CANDIDATE\s*\d+\s*:\s*/i, '')       // 去掉开头的 CANDIDATE N:
+    .trim()
 }
 
 // ============================================================
@@ -501,9 +509,11 @@ Please generate an improved expansion from this specific angle, addressing the u
     const angleSamples = results.slice(angleIdx * K, (angleIdx + 1) * K)
 
     const samples = angleSamples.map((data, sampleIdx) => {
-      const text = (data.choices?.[0]?.message?.content || '').trim()
-      const logprobs = data.choices?.[0]?.logprobs || null
-      const topLogprobs = data.choices?.[0]?.top_logprobs || null
+      const text = cleanText(data.choices?.[0]?.message?.content || '')
+      // OpenAI-compatible format: logprobs.content is an array of {logprob, top_logprobs}
+      const logprobsContent = data.choices?.[0]?.logprobs?.content || null
+      const logprobs = Array.isArray(logprobsContent) ? logprobsContent.map((item: any) => item.logprob) : null
+      const topLogprobs = Array.isArray(logprobsContent) ? logprobsContent.map((item: any) => item.top_logprobs || []) : null
       const uncertainty = computeUncertainty(logprobs, topLogprobs)
 
       return {
@@ -522,8 +532,23 @@ Please generate an improved expansion from this specific angle, addressing the u
       ? validSamples.reduce((sum, s) => sum + s.uncertainty.u1_avg_nll, 0) / validSamples.length
       : 0
 
-    // 选出 U₁-U₃ 聚合最低的 candidate 作为展示
-    const bestIdx = pickBestCandidateIndex(samples.map(s => s.uncertainty))
+    // 选出 U₁-U₃ 聚合最低的 candidate 作为展示，并保留各 sample 的归一化聚合分
+    const uncertaintyScores = samples.map(s => s.uncertainty)
+    const bestIdx = pickBestCandidateIndex(uncertaintyScores)
+
+    // 重新计算归一化分数，取出 best sample 对应的值（与选 best 时完全一致）
+    const normalize = (arr: number[]): number[] => {
+      const min = Math.min(...arr)
+      const max = Math.max(...arr)
+      const range = max - min
+      if (range < 1e-10) return arr.map(() => 0)
+      return arr.map(v => (v - min) / range)
+    }
+    const n1 = normalize(uncertaintyScores.map(s => s.u1_avg_nll))
+    const n2 = normalize(uncertaintyScores.map(s => s.u2_mean_entropy))
+    const n3 = normalize(uncertaintyScores.map(s => s.u3_msp))
+    const combinedScores = uncertaintyScores.map((_, i) => (n1[i] + n2[i] + n3[i]) / 3)
+    const u1_u3_agg = combinedScores[bestIdx]
 
     return {
       angle,
@@ -531,6 +556,7 @@ Please generate an improved expansion from this specific angle, addressing the u
       u4_mc_nse,
       best_sample_index: bestIdx,
       displayed_candidate: samples[bestIdx],
+      u1_u3_agg,
     }
   })
 
@@ -541,6 +567,7 @@ Please generate an improved expansion from this specific angle, addressing the u
     seed: ar.displayed_candidate.seed,
     angle: ar.angle,
     uncertainty: ar.displayed_candidate.uncertainty,
+    u1_u3_agg: ar.u1_u3_agg,
     u4_mc_nse: ar.u4_mc_nse,
   }))
 

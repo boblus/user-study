@@ -586,7 +586,7 @@ ol li {
     position: absolute;
     right: 0.25rem;
     top: 50%;
-    transform: translateY(-60%);
+    transform: translateY(-58%);
     margin: 0;
     height: 1.6rem;
     background: none;
@@ -725,6 +725,49 @@ ol li {
 .candidate-text:focus {
     outline: none;
     border-color: #3498db;
+}
+
+
+/* Candidate header: label + uncertainty badges on same row */
+.candidate-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.25rem;
+}
+
+.candidate-header label {
+    margin-bottom: 0;
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: #333;
+}
+
+.candidate-uncertainty {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+}
+
+.uncertainty-badge {
+    font-size: 0.75rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: 10px;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: default;
+}
+
+.u13-badge {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.u4-badge {
+    background-color: #cce5ff;
+    color: #004085;
+    border: 1px solid #b8daff;
 }
 
 /* Candidates buttons container - all three buttons in one row, centered */

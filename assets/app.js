@@ -531,8 +531,8 @@ function getInstructionsHTML(paradigm, isFullPage) {
                     <li><p>If your judgment refers to a specific sentence/paragraph/section of the paper, you may paste it in the Text snippet block to provide context to the system.</p></li>
                 </ul></li>
                 <li><p><strong>Step B: Generate candidates</strong></p>
-                <p>After you submit your judgment, click <img src="icons/up-arrow.png" alt="Generate" class="btn-icon"> to generate review comments. The system will generate 2 candidate review comments. Since the system sends a real-time request, it may take a few seconds to respond.</p></li>
-                <li><p><strong>Step C: Accept, refine or reject</strong></p>
+                <p>After you submit your judgment, click <img src="icons/up-arrow.png" alt="Generate" class="btn-icon"> to generate review comments. The system will generate 3 candidate review comments. Since the system sends a real-time request, it may take a few seconds to respond.</p></li>
+                <li><p><strong>Step C: Accept, Refine or Reject</strong></p>
                 <ul>
                     <li><p>If the generated comment is satisfactory, click <img src="icons/accept.png" alt="Accept" class="btn-icon"> and move on to the next judgment.</p></li>
                     <li><p>If the generated comment is not satisfactory, click <img src="icons/refine.png" alt="Refine" class="btn-icon"> to provide feedback and let the system generate a new candidate based on your feedback.</p></li>
@@ -861,10 +861,27 @@ async function renderTask() {
                         
                         // Restore candidates if they exist
                         if (pendingRound.candidates && pendingRound.candidates.length > 0) {
+                            const isUncertaintyMode = pendingRound.candidates[0].uncertainty !== null && pendingRound.candidates[0].uncertainty !== undefined;
+                            const container = document.querySelector('.candidates-container');
+                            if (container) {
+                                container.classList.toggle('uncertainty-mode', isUncertaintyMode);
+                            }
                             pendingRound.candidates.forEach((candidate, index) => {
-                                const candidateTextarea = document.querySelector(`#candidate-${index} .candidate-text`);
+                                const candidateEl = document.getElementById(`candidate-${index}`);
+                                if (!candidateEl) return;
+                                const candidateTextarea = candidateEl.querySelector('.candidate-text');
                                 if (candidateTextarea) {
                                     candidateTextarea.value = candidate.output;
+                                }
+                                const uncertaintyEl = candidateEl.querySelector('.candidate-uncertainty');
+                                if (uncertaintyEl) {
+                                    if (isUncertaintyMode && candidate.u1_u3_agg !== null && candidate.u1_u3_agg !== undefined) {
+                                        candidateEl.querySelector('.u13-value').textContent = candidate.u1_u3_agg.toFixed(3);
+                                        candidateEl.querySelector('.u4-value').textContent = (candidate.u4_mc_nse !== null ? candidate.u4_mc_nse.toFixed(3) : '—');
+                                        uncertaintyEl.style.display = 'flex';
+                                    } else {
+                                        uncertaintyEl.style.display = 'none';
+                                    }
                                 }
                             });
                         }
@@ -1185,12 +1202,31 @@ async function handleGenerate() {
             // Reset to Stage 1
             if (selectionStage) selectionStage.style.display = 'block';
             if (confirmStage) confirmStage.style.display = 'none';
-            
-            // Populate candidate textareas
+
+            // Populate candidate textareas and uncertainty badges
+            const isUncertaintyMode = candidates.length > 0 && candidates[0].uncertainty !== null && candidates[0].uncertainty !== undefined;
+            const container = document.querySelector('.candidates-container');
+            if (container) {
+                container.classList.toggle('uncertainty-mode', isUncertaintyMode);
+            }
             candidates.forEach((candidate, index) => {
-                const candidateTextarea = document.querySelector(`#candidate-${index} .candidate-text`);
+                const candidateEl = document.getElementById(`candidate-${index}`);
+                if (!candidateEl) return;
+                const candidateTextarea = candidateEl.querySelector('.candidate-text');
                 if (candidateTextarea) {
                     candidateTextarea.value = candidate.output;
+                }
+                const uncertaintyEl = candidateEl.querySelector('.candidate-uncertainty');
+                if (uncertaintyEl) {
+                    if (isUncertaintyMode && candidate.uncertainty) {
+                        const u = candidate.uncertainty;
+                        const u13 = ((u.u1_avg_nll || 0) + (u.u2_mean_entropy || 0) + (u.u3_msp || 0)) / 3;
+                        candidateEl.querySelector('.u13-value').textContent = u13.toFixed(3);
+                        candidateEl.querySelector('.u4-value').textContent = (candidate.u4_mc_nse !== null ? candidate.u4_mc_nse.toFixed(3) : '—');
+                        uncertaintyEl.style.display = 'flex';
+                    } else {
+                        uncertaintyEl.style.display = 'none';
+                    }
                 }
             });
             generatedArea.style.display = 'block';
@@ -1216,6 +1252,7 @@ async function handleGenerate() {
         alert('Generation failed. Please try again.');
         // Re-enable generate button on error
         if (generateBtn) {
+            generateBtn.style.display = 'inline-block';
             generateBtn.disabled = false;
             generateBtn.innerHTML = '<img src="icons/up-arrow.png" alt="Generate" class="generate-icon">';
         }

@@ -151,11 +151,15 @@ class CollabSimulator {
             if (!data.candidates || !Array.isArray(data.candidates)) {
                 throw new Error('Response missing candidates array');
             }
-            // 返回格式：[{text: "...", temperature: 0.7}, ...]
-            // 转换为前端期望的格式：[{output: "...", temperature: 0.7}, ...]
+            // 返回格式：[{text: "...", temperature: 0.7, uncertainty?, u4_mc_nse?, angle?}, ...]
+            // 转换为前端期望的格式，透传 uncertainty 相关字段
             return data.candidates.map(c => ({
                 output: c.text,
-                temperature: c.temperature
+                temperature: c.temperature,
+                uncertainty: c.uncertainty || null,
+                u1_u3_agg: c.u1_u3_agg !== undefined ? c.u1_u3_agg : null,
+                u4_mc_nse: c.u4_mc_nse !== undefined ? c.u4_mc_nse : null,
+                angle: c.angle || null,
             }));
         } catch (error) {
             console.error('Edge Function 调用失败:', error);
