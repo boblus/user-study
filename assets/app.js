@@ -875,8 +875,10 @@ async function renderTask() {
                                 }
                                 const uncertaintyEl = candidateEl.querySelector('.candidate-uncertainty');
                                 if (uncertaintyEl) {
-                                    if (isUncertaintyMode && candidate.u1_u3_agg !== null && candidate.u1_u3_agg !== undefined) {
-                                        candidateEl.querySelector('.u13-value').textContent = candidate.u1_u3_agg.toFixed(3);
+                                    if (isUncertaintyMode && candidate.uncertainty) {
+                                        const u = candidate.uncertainty;
+                                        const u13 = ((u.u1_avg_nll || 0) + (u.u2_mean_entropy || 0) + (u.u3_msp || 0)) / 3;
+                                        candidateEl.querySelector('.u13-value').textContent = u13.toFixed(3);
                                         candidateEl.querySelector('.u4-value').textContent = (candidate.u4_mc_nse !== null ? candidate.u4_mc_nse.toFixed(3) : '—');
                                         uncertaintyEl.style.display = 'flex';
                                     } else {
@@ -1170,6 +1172,15 @@ async function handleGenerate() {
             feedback,
             textSnippet
         );
+
+        // Sort candidates by U4 (u4_mc_nse) ascending in uncertainty mode (lowest = most certain = first)
+        if (candidates.length > 0 && candidates[0].uncertainty !== null && candidates[0].uncertainty !== undefined) {
+            candidates.sort((a, b) => {
+                const u4a = (a.u4_mc_nse !== null && a.u4_mc_nse !== undefined) ? a.u4_mc_nse : Infinity;
+                const u4b = (b.u4_mc_nse !== null && b.u4_mc_nse !== undefined) ? b.u4_mc_nse : Infinity;
+                return u4a - u4b;
+            });
+        }
 
         // Add new round with multiple candidates
         const newRound = {

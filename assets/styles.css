@@ -514,7 +514,7 @@ ol li {
 }
 
 #collab-input-area {
-    margin-bottom: 0.75rem;
+    margin-bottom: 0;
 }
 
 /* Input container (包含 judgment 和 text snippet) */
@@ -586,7 +586,7 @@ ol li {
     position: absolute;
     right: 0.25rem;
     top: 50%;
-    transform: translateY(-58%);
+    transform: translateY(-56%);
     margin: 0;
     height: 1.6rem;
     background: none;
@@ -667,7 +667,7 @@ ol li {
 }
 
 #collab-generated-area {
-    margin-top: 0.75rem;
+    margin-top: 1rem;
     padding: 1rem;
     background-color: #f0f7ff;
     border-left: 4px solid #3498db;
@@ -858,7 +858,7 @@ ol li {
 
 /* Outer History wrapper (collapsible) */
 .history-wrapper {
-    margin-bottom: 0.75rem;
+    margin-bottom: 1rem;
     background-color: #f0eef5;
     border: 1px solid #d5d0e3;
     border-radius: 6px;
