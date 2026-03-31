@@ -117,23 +117,17 @@ async function callLLM(systemPrompt: string, userPrompt: string, temperature: nu
 async function handleBaseline(params: GenerateParams): Promise<Response> {
   const { paperContent, previousRounds, judgment, feedback, textSnippet, temperature, seed } = params
 
-  const systemPrompt = `You are an expert peer reviewer assistant. Your task is to help expand a single review point (judgment) into a well-written review comment by generating THREE diverse candidates.
+  const systemPrompt = `You are an expert peer reviewer assistant. Your task is to help expand a single review point (judgment) into a well-written review comment by generating multiple diverse candidates.
 
 IMPORTANT GUIDELINES:
 1. The user provides ONE judgment point (either a strength, weakness, or a suggestion of the paper).
 2. The user may also provide a text snippet extracted from the paper as relevant context for their judgment point.
 3. Your job is to:
-   (a) First, analyze the judgment point and identify 3 different angles/aspects to approach it.
-   (b) Then, generate THREE distinct candidates, each focusing on a different angle.
+   (a) First, analyze the judgment point and identify how many distinct angles/aspects it naturally supports (between 2 and 5).
+   (b) Then, generate one candidate per angle (minimum 2, maximum 5). Choose the number that best fits the judgment. Do not force extra angles if they would be redundant.
 4. Each candidate should be a CONCISE expansion of the judgment point, typically 2-3 sentences that form a focused review point. Not too brief to be vague, not too lengthy to overwhelm the reader.
-5. The three candidates MUST have clear differentiation; they should explore different aspects, emphasize different points, or use different reasoning, based on the same core judgment.
+5. The candidates MUST have clear differentiation; they should explore different aspects, emphasize different points, or use different reasoning, based on the same core judgment.
 6. Follow the provided review guidelines.
-7. Output should be in this EXACT format:
-   CANDIDATE 1: [first expansion focusing on angle 1]
-
-   CANDIDATE 2: [second expansion focusing on angle 2]
-
-   CANDIDATE 3: [third expansion focusing on angle 3]
 
 ${REVIEW_GUIDELINES}`
 
@@ -152,17 +146,22 @@ Text snippet from the paper (relevant context):
 ` : ''}
 User's judgment point to expand: "${judgment}"
 
-Please generate THREE diverse candidates for expanding this judgment point:
-1. First, briefly identify 3 different angles or aspects to approach this judgment point.
-2. Then, generate three distinct expansions, each exploring one angle.
-3. Ensure the three candidates have clear differentiation while all being valid expansions of the same judgment.
+Generate between 2 and 5 diverse candidates for expanding this judgment point. Choose the count that best reflects the natural angle space of the judgment:
+1. First, identify the distinct angles or aspects this judgment supports (2–5).
+2. Then, generate one expansion per angle.
+3. Ensure the candidates have clear differentiation while all being valid expansions of the same judgment.
 
-Output format:
-CANDIDATE 1: [expansion]
+Output MUST follow this EXACT format (N between 2 and 5). NO EXTRA NOTES, COMMENTS, OR SYMBOLS OF ANY KIND:
+CANDIDATE 1: <angle label>: <expansion>
 
-CANDIDATE 2: [expansion]
+CANDIDATE 2: <angle label>: <expansion>
 
-CANDIDATE 3: [expansion]`
+...
+
+CANDIDATE N: <angle label>: <expansion>
+
+Example output:
+CANDIDATE 1: Theoretical grounding: The argument would benefit from a stronger theoretical basis...`
 
   } else {
     const historyText = previousRounds.map((round: any, idx: number) => {
@@ -188,28 +187,29 @@ Text snippet from the paper (relevant context):
 
 ---
 ` : ''}
-${judgment ? `User's updated judgment: "${judgment}"` : ''}
 ${feedback ? `User's feedback for improvement: "${feedback}"` : ''}
 
-Please generate THREE improved and diverse candidates, addressing the user's feedback. Ensure the three candidates have clear differentiation while all addressing the feedback.
+Based on the previous expansion attempts and the user's feedback, please generate between 2 and 5 improved candidates. Each candidate should be a direct improvement upon the previous expansions, specifically incorporating the user's feedback. Each candidate should retain the same angle label as the expansion it improves upon. Do not change or invent new angle labels. Do NOT start from scratch or ignore the prior attempts. Ensure the candidates have clear differentiation from each other while all addressing the feedback.
 
-Output format:
-CANDIDATE 1: [expansion]
+Output should be in this EXACT format (N between 2 and 5), with ABSOLUTELY NO EXTRA NOTES OR COMMENTS:
+CANDIDATE 1: <angle label>: <expansion>
 
-CANDIDATE 2: [expansion]
+CANDIDATE 2: <angle label>: <expansion>
 
-CANDIDATE 3: [expansion]`
+...
+
+CANDIDATE N: <angle label>: <expansion>`
   }
 
   const data = await callLLM(systemPrompt, userPrompt, temperature, seed)
   const rawOutput = data.choices?.[0]?.message?.content || ''
 
-  // 解析三个 candidates
-  const candidate1Match = rawOutput.match(/CANDIDATE 1:\s*([\s\S]*?)(?=CANDIDATE 2:|$)/i)
-  const candidate2Match = rawOutput.match(/CANDIDATE 2:\s*([\s\S]*?)(?=CANDIDATE 3:|$)/i)
-  const candidate3Match = rawOutput.match(/CANDIDATE 3:\s*([\s\S]*?)$/i)
+  // 动态解析 candidates（2–5 个）：按 CANDIDATE N: 分割（兼容 LLM 可能加上序号前缀如 "1. CANDIDATE 1:"）
+  const parts = rawOutput.split(/(?:^|\n)\s*(?:\d+\.\s*)?CANDIDATE\s+\d+\s*:/gi)
+  // parts[0] 是第一个 CANDIDATE 之前的内容（通常为空），parts[1..N] 是各 candidate 的文本
+  const candidateParts = parts.slice(1).map((p: string) => p.trim()).filter((p: string) => p.length > 0)
 
-  if (!candidate1Match || !candidate2Match || !candidate3Match) {
+  if (candidateParts.length < 2) {
     console.error('Failed to parse candidates from output:', rawOutput)
     return new Response(
       JSON.stringify({ error: 'Failed to parse candidates from LLM output', rawOutput }),
@@ -217,11 +217,11 @@ CANDIDATE 3: [expansion]`
     )
   }
 
-  const candidates = [
-    { text: cleanText(candidate1Match[1]), temperature },
-    { text: cleanText(candidate2Match[1]), temperature },
-    { text: cleanText(candidate3Match[1]), temperature }
-  ]
+  const candidates = candidateParts.slice(0, 5).map((rawText: string) => ({
+    text: cleanText(rawText),
+    angle: null,
+    temperature,
+  }))
 
   const responseBody: Record<string, any> = { candidates }
 
@@ -242,6 +242,10 @@ function cleanText(text: string): string {
     .replace(/^\s*\*+\s*/gm, '')                      // 去掉每行开头的 **
     .replace(/\s*\*+\s*$/gm, '')                      // 去掉每行结尾的 **
     .replace(/^\s*CANDIDATE\s*\d+\s*:\s*/i, '')       // 去掉开头的 CANDIDATE N:
+    .replace(/^\s*\[/, '')                            // 去掉开头的 [
+    .replace(/\]\s*$/, '')                            // 去掉结尾的 ]
+    .replace(/\]\s*:/g, ':')                          // 去掉 label 中 ]: 里的 ]
+    .replace(/:\s*\]/g, ':')                          // 去掉 label 中 :] 里的 ]
     .trim()
 }
 

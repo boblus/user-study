@@ -144,25 +144,21 @@ function bindEventListeners() {
     document.getElementById('start-writing-e2e-btn').addEventListener('click', handleStartWritingE2E);
     document.getElementById('generate-btn').addEventListener('click', handleGenerate);
     
-    // Allow Enter key in judgment input to trigger generate
+    // Allow Enter key in judgment input to trigger generate (only when not locked)
     const judgmentInput = document.getElementById('judgment-input');
     if (judgmentInput) {
         judgmentInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
+                const generateBtn = document.getElementById('generate-btn');
+                if (!generateBtn || generateBtn.disabled) return;
                 handleGenerate();
             }
         });
     }
     
-    // Multiple candidates - Select buttons (Stage 1)
-    document.querySelectorAll('.select-candidate-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const index = parseInt(btn.getAttribute('data-index'), 10);
-            handleSelectCandidate(index);
-        });
-    });
-    
+    // Select-candidate buttons are added dynamically in renderCandidates()
+
     // Regenerate button removed from UI
     // const regenerateBtn = document.getElementById('regenerate-btn');
     // if (regenerateBtn) regenerateBtn.addEventListener('click', handleRegenerate);
@@ -175,7 +171,7 @@ function bindEventListeners() {
     if (refineSelectedBtn) refineSelectedBtn.addEventListener('click', handleRefineSelected);
 
     const rejectSelectedBtn = document.getElementById('reject-selected-btn');
-    if (rejectSelectedBtn) rejectSelectedBtn.addEventListener('click', handleRejectSelected);
+    if (rejectSelectedBtn) rejectSelectedBtn.addEventListener('click', handleBackToCandidates);
 
     // Reject all candidates (Stage 1)
     const rejectAllBtn = document.getElementById('reject-all-btn');
@@ -730,6 +726,14 @@ async function renderTask() {
     const roundsContainer = document.getElementById('collab-rounds-container');
     if (roundsContainer) roundsContainer.innerHTML = '';
 
+    // Always reset judgment input state to ensure clean slate on every task load / Start Writing
+    const judgmentInputReset = document.getElementById('judgment-input');
+    if (judgmentInputReset) { judgmentInputReset.value = ''; judgmentInputReset.disabled = false; }
+    const textSnippetInputReset = document.getElementById('text-snippet-input');
+    if (textSnippetInputReset) { textSnippetInputReset.value = ''; textSnippetInputReset.disabled = false; }
+    const generateBtnReset = document.getElementById('generate-btn');
+    if (generateBtnReset) generateBtnReset.disabled = false;
+
     if (task.paradigm === 'scratch') {
         // Scratch mode: show start writing button
         scratchControls.style.display = 'block';
@@ -861,36 +865,16 @@ async function renderTask() {
                         
                         // Restore candidates if they exist
                         if (pendingRound.candidates && pendingRound.candidates.length > 0) {
-                            const isUncertaintyMode = pendingRound.candidates[0].uncertainty !== null && pendingRound.candidates[0].uncertainty !== undefined;
-                            const container = document.querySelector('.candidates-container');
-                            if (container) {
-                                container.classList.toggle('uncertainty-mode', isUncertaintyMode);
-                            }
-                            pendingRound.candidates.forEach((candidate, index) => {
-                                const candidateEl = document.getElementById(`candidate-${index}`);
-                                if (!candidateEl) return;
-                                const candidateTextarea = candidateEl.querySelector('.candidate-text');
-                                if (candidateTextarea) {
-                                    candidateTextarea.value = candidate.output;
-                                }
-                                const uncertaintyEl = candidateEl.querySelector('.candidate-uncertainty');
-                                if (uncertaintyEl) {
-                                    if (isUncertaintyMode && candidate.uncertainty) {
-                                        const u = candidate.uncertainty;
-                                        const u13 = ((u.u1_avg_nll || 0) + (u.u2_mean_entropy || 0) + (u.u3_msp || 0)) / 3;
-                                        candidateEl.querySelector('.u13-value').textContent = u13.toFixed(3);
-                                        candidateEl.querySelector('.u4-value').textContent = (candidate.u4_mc_nse !== null ? candidate.u4_mc_nse.toFixed(3) : '—');
-                                        uncertaintyEl.style.display = 'flex';
-                                    } else {
-                                        uncertaintyEl.style.display = 'none';
-                                    }
-                                }
-                            });
+                            renderCandidates(pendingRound.candidates);
                         }
                     }
                     generatedArea.style.display = 'block';
                 }
-                if (generateBtn) generateBtn.style.display = 'none';
+                if (generateBtn) generateBtn.disabled = true;
+                const judgmentInputEl = document.getElementById('judgment-input');
+                const textSnippetInputEl = document.getElementById('text-snippet-input');
+                if (judgmentInputEl) judgmentInputEl.disabled = true;
+                if (textSnippetInputEl) textSnippetInputEl.disabled = true;
                 if (rejectFeedbackArea) rejectFeedbackArea.style.display = 'none';
             } else if (lastRound && lastRound.status === 'rejected' && !lastRound.feedback) {
                 // Last round was rejected but no feedback yet - show input area and recreate feedback area
@@ -905,6 +889,11 @@ async function renderTask() {
                     generateBtn.disabled = false;
                     generateBtn.innerHTML = '<img src="icons/up-arrow.png" alt="Generate" class="generate-icon">';
                 }
+                // Ensure inputs are enabled
+                const judgmentInputEl2 = document.getElementById('judgment-input');
+                const textSnippetInputEl2 = document.getElementById('text-snippet-input');
+                if (judgmentInputEl2) judgmentInputEl2.disabled = false;
+                if (textSnippetInputEl2) textSnippetInputEl2.disabled = false;
             } else {
                 // Ready for new judgment input
                 if (collabInputArea) collabInputArea.style.display = 'block';
@@ -916,6 +905,11 @@ async function renderTask() {
                     generateBtn.disabled = false;
                     generateBtn.innerHTML = '<img src="icons/up-arrow.png" alt="Generate" class="generate-icon">';
                 }
+                // Ensure inputs are enabled
+                const judgmentInputEl = document.getElementById('judgment-input');
+                const textSnippetInputEl = document.getElementById('text-snippet-input');
+                if (judgmentInputEl) judgmentInputEl.disabled = false;
+                if (textSnippetInputEl) textSnippetInputEl.disabled = false;
             }
         } else {
             // Writing has NOT started yet - show only Start Writing button
@@ -1123,6 +1117,67 @@ async function handleStartWritingE2E() {
 }
 
 /**
+ * Render candidate cards and select buttons dynamically based on the candidates array.
+ * @param {Array} candidates - Array of candidate objects with .output, .angle, .uncertainty, etc.
+ */
+function renderCandidates(candidates) {
+    const isUncertaintyMode = candidates.length > 0 &&
+        candidates[0].uncertainty !== null && candidates[0].uncertainty !== undefined;
+
+    // Rebuild candidate card elements
+    const container = document.querySelector('.candidates-container');
+    if (container) {
+        container.innerHTML = '';
+        container.classList.toggle('uncertainty-mode', isUncertaintyMode);
+        candidates.forEach((candidate, index) => {
+            const div = document.createElement('div');
+            div.className = 'candidate';
+            div.id = `candidate-${index}`;
+            div.dataset.candidateOutput = candidate.output || '';
+            div.innerHTML = `
+                <div class="candidate-header">
+                    <label>Candidate ${index + 1}:</label>
+                    <div class="candidate-uncertainty" style="display:none;">
+                        <span class="uncertainty-badge u13-badge" title="Average of U1 (avg NLL), U2 (mean entropy), U3 (MSP)">U1-3: <span class="u13-value">—</span></span>
+                        <span class="uncertainty-badge u4-badge" title="U4: MC sampling uncertainty (mean NLL across samples)">U4: <span class="u4-value">—</span></span>
+                    </div>
+                </div>
+                <textarea class="candidate-text" rows="10" readonly></textarea>
+            `;
+            const textarea = div.querySelector('.candidate-text');
+            textarea.value = candidate.angle
+                ? `【${candidate.angle}】：\n${candidate.output}`
+                : candidate.output;
+            const uncertaintyEl = div.querySelector('.candidate-uncertainty');
+            if (isUncertaintyMode && candidate.uncertainty) {
+                const u = candidate.uncertainty;
+                const u13 = ((u.u1_avg_nll || 0) + (u.u2_mean_entropy || 0) + (u.u3_msp || 0)) / 3;
+                div.querySelector('.u13-value').textContent = u13.toFixed(3);
+                div.querySelector('.u4-value').textContent = (candidate.u4_mc_nse !== null ? candidate.u4_mc_nse.toFixed(3) : '—');
+                uncertaintyEl.style.display = 'flex';
+            }
+            container.appendChild(div);
+        });
+    }
+
+    // Rebuild select buttons (before the reject-all button)
+    const buttonsContainer = document.querySelector('.candidates-buttons-container');
+    if (buttonsContainer) {
+        buttonsContainer.querySelectorAll('.select-candidate-btn').forEach(btn => btn.remove());
+        buttonsContainer.classList.toggle('many-candidates', candidates.length >= 5);
+        const rejectAllBtn = document.getElementById('reject-all-btn');
+        candidates.forEach((_, index) => {
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-primary select-candidate-btn';
+            btn.setAttribute('data-index', String(index));
+            btn.textContent = `Candidate ${index + 1}`;
+            btn.addEventListener('click', () => handleSelectCandidate(index));
+            buttonsContainer.insertBefore(btn, rejectAllBtn);
+        });
+    }
+}
+
+/**
  * Handle generate (collaborative mode) - generates multiple candidates
  */
 async function handleGenerate() {
@@ -1164,10 +1219,21 @@ async function handleGenerate() {
     }
 
     try {
-        // Generate multiple candidates in parallel
+        // Only pass rounds from the current judgment (not history from previous judgments)
+        const currentJudgmentRounds = rounds.filter(r => r.judgmentNum === currentJudgmentNum);
+
+        // For 'rejected' rounds, output is null (only set on accept), so fill it with the selected candidate's text
+        const enrichedJudgmentRounds = currentJudgmentRounds.map(round => {
+            if (round.output !== null && round.output !== undefined) return round;
+            if (round.candidates && round.selectedCandidateIndex !== null && round.selectedCandidateIndex !== undefined) {
+                return { ...round, output: round.candidates[round.selectedCandidateIndex]?.output || null };
+            }
+            return round;
+        });
+
         const candidates = await CollabSimulator.generateMultipleCandidates(
             task.paperId,
-            rounds,
+            enrichedJudgmentRounds,
             judgment,
             feedback,
             textSnippet
@@ -1201,8 +1267,12 @@ async function handleGenerate() {
             judgment: judgment
         });
         
-        // Hide generate button but keep judgment input visible for reference
-        if (generateBtn) generateBtn.style.display = 'none';
+        // Disable generate button and lock inputs while candidates are shown
+        if (generateBtn) generateBtn.disabled = true;
+        const judgmentInputLock = document.getElementById('judgment-input');
+        const textSnippetInputLock = document.getElementById('text-snippet-input');
+        if (judgmentInputLock) judgmentInputLock.disabled = true;
+        if (textSnippetInputLock) textSnippetInputLock.disabled = true;
 
         // Show candidates in the UI (Stage 1)
         const generatedArea = document.getElementById('collab-generated-area');
@@ -1214,40 +1284,9 @@ async function handleGenerate() {
             if (selectionStage) selectionStage.style.display = 'block';
             if (confirmStage) confirmStage.style.display = 'none';
 
-            // Populate candidate textareas and uncertainty badges
-            const isUncertaintyMode = candidates.length > 0 && candidates[0].uncertainty !== null && candidates[0].uncertainty !== undefined;
-            const container = document.querySelector('.candidates-container');
-            if (container) {
-                container.classList.toggle('uncertainty-mode', isUncertaintyMode);
-            }
-            candidates.forEach((candidate, index) => {
-                const candidateEl = document.getElementById(`candidate-${index}`);
-                if (!candidateEl) return;
-                const candidateTextarea = candidateEl.querySelector('.candidate-text');
-                if (candidateTextarea) {
-                    candidateTextarea.value = candidate.output;
-                }
-                const uncertaintyEl = candidateEl.querySelector('.candidate-uncertainty');
-                if (uncertaintyEl) {
-                    if (isUncertaintyMode && candidate.uncertainty) {
-                        const u = candidate.uncertainty;
-                        const u13 = ((u.u1_avg_nll || 0) + (u.u2_mean_entropy || 0) + (u.u3_msp || 0)) / 3;
-                        candidateEl.querySelector('.u13-value').textContent = u13.toFixed(3);
-                        candidateEl.querySelector('.u4-value').textContent = (candidate.u4_mc_nse !== null ? candidate.u4_mc_nse.toFixed(3) : '—');
-                        uncertaintyEl.style.display = 'flex';
-                    } else {
-                        uncertaintyEl.style.display = 'none';
-                    }
-                }
-            });
+            renderCandidates(candidates);
             generatedArea.style.display = 'block';
         }
-        
-        // Enable all select buttons
-        document.querySelectorAll('.select-candidate-btn').forEach(btn => {
-            btn.disabled = false;
-            btn.style.opacity = '1';
-        });
         
         // Regenerate button removed from UI
         // const regenerateBtn = document.getElementById('regenerate-btn');
@@ -1278,15 +1317,6 @@ async function handleSelectCandidate(candidateIndex) {
     const taskIndex = AppState.currentTaskIndex;
     const task = AppState.assignment.tasks[taskIndex - 1];
     
-    // Get the text from the selected candidate
-    const candidateTextarea = document.querySelector(`#candidate-${candidateIndex} .candidate-text`);
-    const selectedText = candidateTextarea ? candidateTextarea.value.trim() : '';
-    
-    if (!selectedText) {
-        alert('Cannot select empty text.');
-        return;
-    }
-
     // Get fresh state
     const state = await backend.getCurrentState(AppState.currentToken);
     AppState.currentState = state;
@@ -1294,7 +1324,26 @@ async function handleSelectCandidate(candidateIndex) {
     const rounds = [...(taskState.collabRounds || [])];
 
     // Update the pending round with selected candidate
-    const pendingRound = rounds.find(r => r.status === 'pending');
+    let pendingRound = rounds.find(r => r.status === 'pending');
+    // Fallback: if state fetch failed or status changed, try last round with candidates
+    if (!pendingRound && rounds.length > 0) {
+        const lastRound = rounds[rounds.length - 1];
+        if (lastRound.candidates && lastRound.candidates.length > 0) {
+            pendingRound = lastRound;
+        }
+    }
+
+    // Use pure output from state; fall back to DOM data attribute if state is stale
+    let selectedOutput = pendingRound?.candidates?.[candidateIndex]?.output || '';
+    if (!selectedOutput) {
+        const candidateCard = document.getElementById(`candidate-${candidateIndex}`);
+        selectedOutput = candidateCard?.dataset.candidateOutput || '';
+    }
+    if (!selectedOutput) {
+        alert('Cannot select empty text.');
+        return;
+    }
+
     if (pendingRound) {
         pendingRound.selectedCandidateIndex = candidateIndex;
     }
@@ -1319,10 +1368,10 @@ async function handleSelectCandidate(candidateIndex) {
     const selectionStage = document.getElementById('candidates-selection-stage');
     const confirmStage = document.getElementById('candidate-confirm-stage');
     const selectedTextarea = document.getElementById('selected-candidate-text');
-    
+
     if (selectionStage) selectionStage.style.display = 'none';
     if (confirmStage) confirmStage.style.display = 'block';
-    if (selectedTextarea) selectedTextarea.value = selectedText;
+    if (selectedTextarea) selectedTextarea.value = selectedOutput;
 
     // IMPORTANT: Re-enable Accept/Refine/Reject buttons (they may have been disabled from previous refine)
     const acceptBtn = document.getElementById('accept-selected-btn');
@@ -1404,16 +1453,10 @@ async function handleAcceptSelected() {
         timestamp: new Date().toISOString()
     });
 
-    // Get judgment text before clearing
-    const judgmentInput = document.getElementById('judgment-input');
-    const judgmentText = judgmentInput ? judgmentInput.value.trim() : '';
-    
-    // Get the original candidate output for history
-    const originalOutput = pendingRound?.candidates?.[candidateIndex]?.output || editedOutput;
-
     // Create judgment history - use the round's judgmentNum
     const judgmentNum = pendingRound?.judgmentNum || 1;
-    createJudgmentHistory(judgmentNum, judgmentText, originalOutput, editedOutput, 'accepted');
+    const currentJudgmentRounds = rounds.filter(r => r.judgmentNum === judgmentNum);
+    createJudgmentHistory(judgmentNum, currentJudgmentRounds, editedOutput, 'accepted');
     
     // Reset UI
     const generatedArea = document.getElementById('collab-generated-area');
@@ -1447,15 +1490,16 @@ async function handleAcceptSelected() {
         judgmentLabel.textContent = 'Judgment:';
     }
 
-    // Clear and show judgment input
-    if (judgmentInput) judgmentInput.value = '';
-    
+    // Clear and re-enable judgment input
+    const judgmentInput = document.getElementById('judgment-input');
+    if (judgmentInput) { judgmentInput.value = ''; judgmentInput.disabled = false; }
+
     const textSnippetInput = document.getElementById('text-snippet-input');
-    if (textSnippetInput) textSnippetInput.value = '';
-    
+    if (textSnippetInput) { textSnippetInput.value = ''; textSnippetInput.disabled = false; }
+
     const collabInputArea = document.getElementById('collab-input-area');
     if (collabInputArea) collabInputArea.style.display = 'block';
-    
+
     const generateBtn = document.getElementById('generate-btn');
     if (generateBtn) {
         generateBtn.style.display = 'inline-block';
@@ -1508,21 +1552,11 @@ async function handleRejectAllCandidates() {
         timestamp: new Date().toISOString()
     });
 
-    // Get judgment text for history
-    const judgmentInput = document.getElementById('judgment-input');
-    const judgmentText = judgmentInput ? judgmentInput.value.trim() : '';
-
-    // Get all candidates' outputs for display in history (to show what was rejected)
-    const allCandidates = pendingRound?.candidates || [];
-    const candidateOutputs = allCandidates.map(c => c.output);
-    if (candidateOutputs.length === 0) {
-        candidateOutputs.push('[No candidates generated]');
-    }
-
-    // Count completed judgments (accepted + rejected_all)
-    // Note: rounds with 'rejected' status followed by feedback are not complete yet
+    // Count completed judgments and build history from full rounds data
     const completedCount = rounds.filter(r => r.status === 'accepted' || r.status === 'rejected_all').length;
-    createJudgmentHistory(completedCount, judgmentText, candidateOutputs, '', 'rejected_all');
+    const pendingJudgmentNum = pendingRound?.judgmentNum || completedCount;
+    const currentJudgmentRounds = rounds.filter(r => r.judgmentNum === pendingJudgmentNum);
+    createJudgmentHistory(pendingJudgmentNum, currentJudgmentRounds, '', 'rejected_all');
 
     // Hide generated area
     const generatedArea = document.getElementById('collab-generated-area');
@@ -1532,13 +1566,14 @@ async function handleRejectAllCandidates() {
     const collabInputArea = document.getElementById('collab-input-area');
     if (collabInputArea) collabInputArea.style.display = 'block';
 
-    // Clear and show judgment input
-    if (judgmentInput) judgmentInput.value = '';
+    // Clear and re-enable judgment input
+    const judgmentInput = document.getElementById('judgment-input');
+    if (judgmentInput) { judgmentInput.value = ''; judgmentInput.disabled = false; }
 
     const textSnippetInput = document.getElementById('text-snippet-input');
-    if (textSnippetInput) textSnippetInput.value = '';
+    if (textSnippetInput) { textSnippetInput.value = ''; textSnippetInput.disabled = false; }
 
-    // Show generate button
+    // Re-enable generate button
     const generateBtn = document.getElementById('generate-btn');
     if (generateBtn) {
         generateBtn.style.display = 'inline-block';
@@ -1603,11 +1638,11 @@ async function handleRefineSelected() {
     // Create and show feedback area
     createFeedbackArea('collab-rounds-container');
 
-    // Show generate button
+    // Keep generate button disabled while judgment input is also disabled (user is in feedback/refine flow)
     const generateBtn = document.getElementById('generate-btn');
     if (generateBtn) {
         generateBtn.style.display = 'inline-block';
-        generateBtn.disabled = false;
+        generateBtn.disabled = true;
         generateBtn.innerHTML = '<img src="icons/up-arrow.png" alt="Generate" class="generate-icon">';
     }
 
@@ -1615,9 +1650,9 @@ async function handleRefineSelected() {
 }
 
 /**
- * Handle reject the selected candidate (Stage 2 -> Directly end judgment)
+ * Handle back to candidates (Stage 2 -> Stage 1)
  */
-async function handleRejectSelected() {
+async function handleBackToCandidates() {
     const taskIndex = AppState.currentTaskIndex;
     const task = AppState.assignment.tasks[taskIndex - 1];
 
@@ -1627,18 +1662,10 @@ async function handleRejectSelected() {
     const taskState = state.tasks[taskIndex] || {};
     const rounds = [...(taskState.collabRounds || [])];
 
-    // Find the pending round (or fall back to last round if state was overwritten by autosave)
-    let pendingRound = rounds.find(r => r.status === 'pending');
-    if (!pendingRound && rounds.length > 0) {
-        const lastRound = rounds[rounds.length - 1];
-        if (lastRound.selectedCandidateIndex !== null && lastRound.selectedCandidateIndex !== undefined) {
-            pendingRound = lastRound;
-        }
-    }
-
-    // Mark as rejected_all (same behavior as rejecting all candidates)
+    // Clear selectedCandidateIndex from the pending round
+    const pendingRound = rounds.find(r => r.status === 'pending');
     if (pendingRound) {
-        pendingRound.status = 'rejected_all';
+        pendingRound.selectedCandidateIndex = null;
     }
 
     await backend.saveState(AppState.currentToken, taskIndex, {
@@ -1652,45 +1679,12 @@ async function handleRejectSelected() {
         paper_id: task.paperId,
         paradigm: task.paradigm,
         round_id: pendingRound?.roundId,
-        event_type: 'reject_selected',
+        event_type: 'back_to_candidates',
+        payload: {},
         timestamp: new Date().toISOString()
     });
 
-    // Get judgment text for history
-    const judgmentInput = document.getElementById('judgment-input');
-    const judgmentText = judgmentInput ? judgmentInput.value.trim() : '';
-
-    // Get the selected candidate's output for display in history
-    const selectedCandidateText = document.getElementById('selected-candidate-text');
-    const selectedOutput = selectedCandidateText ? selectedCandidateText.value.trim() : '[No candidate selected]';
-
-    // Count completed judgments (accepted + rejected_all)
-    const completedCount = rounds.filter(r => r.status === 'accepted' || r.status === 'rejected_all').length;
-    createJudgmentHistory(completedCount, judgmentText, selectedOutput, '', 'rejected_selected');
-
-    // Hide generated area
-    const generatedArea = document.getElementById('collab-generated-area');
-    if (generatedArea) generatedArea.style.display = 'none';
-
-    // Reset to initial state
-    const collabInputArea = document.getElementById('collab-input-area');
-    if (collabInputArea) collabInputArea.style.display = 'block';
-
-    // Clear and show judgment input
-    if (judgmentInput) judgmentInput.value = '';
-
-    const textSnippetInput = document.getElementById('text-snippet-input');
-    if (textSnippetInput) textSnippetInput.value = '';
-
-    // Show generate button
-    const generateBtn = document.getElementById('generate-btn');
-    if (generateBtn) {
-        generateBtn.style.display = 'inline-block';
-        generateBtn.disabled = false;
-        generateBtn.innerHTML = '<img src="icons/up-arrow.png" alt="Generate" class="generate-icon">';
-    }
-
-    // Reset Stage 2 for next use
+    // Show Stage 1, hide Stage 2
     const selectionStage = document.getElementById('candidates-selection-stage');
     const confirmStage = document.getElementById('candidate-confirm-stage');
     if (selectionStage) selectionStage.style.display = 'block';
@@ -1794,7 +1788,7 @@ function restoreJudgmentHistory(rounds) {
             }
         }
         
-        // Build history content
+        // Build history content using same logic as createJudgmentHistory
         const judgmentText = groupRounds[0].judgment || '';
         let contentHtml = `
             <div class="history-item">
@@ -1802,85 +1796,65 @@ function restoreJudgmentHistory(rounds) {
                 <div class="history-item-text">${escapeHtml(judgmentText)}</div>
             </div>
         `;
-        
-        let expansionCount = 1;
-        let feedbackCount = 1;
-        
+
         for (const round of groupRounds) {
-            // Add expansion(s)
-            if (round.status === 'rejected_all') {
-                const candidates = round.candidates || [];
-                if (round.selectedCandidateIndex !== null && round.selectedCandidateIndex !== undefined && candidates[round.selectedCandidateIndex]) {
-                    // Reject selected: show only the selected candidate
-                    const expansionText = candidates[round.selectedCandidateIndex].output || '';
-                    if (expansionText) {
-                        contentHtml += `
-                            <div class="history-item history-expansion">
-                                <div class="history-item-label">Expansion:</div>
-                                <div class="history-item-text">${escapeHtml(expansionText)}</div>
-                            </div>
-                        `;
-                        expansionCount++;
-                    }
-                } else if (candidates.length > 0) {
-                    // Reject all: show all candidates that were rejected
-                    candidates.forEach(candidate => {
-                        const expansionText = candidate.output || '';
-                        if (expansionText) {
-                            contentHtml += `
-                                <div class="history-item history-expansion">
-                                    <div class="history-item-label">Expansion ${expansionCount}:</div>
-                                    <div class="history-item-text">${escapeHtml(expansionText)}</div>
-                                </div>
-                            `;
-                            expansionCount++;
-                        }
-                    });
-                } else {
+            const candidates = round.candidates || [];
+            if (candidates.length > 0) {
+                candidates.forEach((candidate, i) => {
+                    const isSelected = round.selectedCandidateIndex === i;
+                    const text = candidate.angle
+                        ? `【${candidate.angle}】：\n${candidate.output}`
+                        : (candidate.output || '');
                     contentHtml += `
-                        <div class="history-item history-expansion">
-                            <div class="history-item-label">Expansion ${expansionCount}:</div>
-                            <div class="history-item-text">[No candidates generated]</div>
-                        </div>
+                    <div class="history-item history-expansion${isSelected ? ' history-selected' : ''}">
+                        <div class="history-item-label">Candidate ${i + 1}${isSelected ? ' (selected)' : ''}:</div>
+                        <div class="history-item-text">${escapeHtml(text)}</div>
+                    </div>
                     `;
-                    expansionCount++;
-                }
+                });
             } else if (round.output) {
-                const expansionText = round.editedOutput || round.output;
-                if (expansionText) {
-                    contentHtml += `
-                        <div class="history-item history-expansion">
-                            <div class="history-item-label">Expansion:</div>
-                            <div class="history-item-text">${escapeHtml(expansionText)}</div>
-                        </div>
-                    `;
-                    expansionCount++;
-                }
+                contentHtml += `
+                <div class="history-item history-expansion">
+                    <div class="history-item-label">Expansion:</div>
+                    <div class="history-item-text">${escapeHtml(round.editedOutput || round.output)}</div>
+                </div>
+                `;
             }
 
-            // Add feedback (if rejected and has feedback)
+            // Show feedback only from rounds the user explicitly rejected
             if (round.status === 'rejected' && round.feedback) {
                 contentHtml += `
-                    <div class="history-item history-feedback">
-                        <div class="history-item-label">Feedback ${feedbackCount}:</div>
-                        <div class="history-item-text">${escapeHtml(round.feedback)}</div>
-                    </div>
+                <div class="history-item history-feedback">
+                    <div class="history-item-label">Feedback:</div>
+                    <div class="history-item-text">${escapeHtml(round.feedback)}</div>
+                </div>
                 `;
-                feedbackCount++;
             }
         }
-        
+
+        // If accepted and text was edited, show final version
+        if (lastRound.status === 'accepted') {
+            const selIdx = lastRound.selectedCandidateIndex;
+            const origText = (selIdx !== null && selIdx !== undefined)
+                ? (lastRound.candidates?.[selIdx]?.output || lastRound.output || '')
+                : (lastRound.output || '');
+            const finalText = lastRound.editedOutput || '';
+            if (finalText && finalText !== origText) {
+                contentHtml += `
+                <div class="history-item history-expansion history-final">
+                    <div class="history-item-label">Final (edited):</div>
+                    <div class="history-item-text">${escapeHtml(finalText)}</div>
+                </div>
+                `;
+            }
+        }
+
         // Determine outcome
         let outcome = 'Rejected';
         if (lastRound.status === 'accepted') {
             outcome = 'Accepted';
-        } else if (lastRound.status === 'rejected_all') {
-            // Distinguish "Rejected" (selected candidate) vs "Rejected all" (all candidates)
-            if (lastRound.selectedCandidateIndex !== null && lastRound.selectedCandidateIndex !== undefined) {
-                outcome = 'Rejected';
-            } else {
-                outcome = 'Rejected all';
-            }
+        } else if (lastRound.status === 'stopped' || lastRound.stoppedManually) {
+            outcome = 'Stopped';
         }
 
         const historyId = 'history-restored-' + judgmentNum;
@@ -1913,11 +1887,12 @@ function restoreJudgmentHistory(rounds) {
 /**
  * Create a collapsible judgment history
  */
-function createJudgmentHistory(judgmentNum, judgmentText, initialExpansion, finalText, outcome) {
+function createJudgmentHistory(judgmentNum, currentJudgmentRounds, finalText, outcome) {
     const historyContainer = document.getElementById('judgment-history-container');
     if (!historyContainer) return;
 
-    // Build content in order: judgment → expansion 1 → feedback 1 → expansion 2 → feedback 2...
+    const judgmentText = currentJudgmentRounds.length > 0 ? (currentJudgmentRounds[0].judgment || '') : '';
+
     let contentHtml = `
         <div class="history-item">
             <div class="history-item-label">Judgment:</div>
@@ -1925,68 +1900,70 @@ function createJudgmentHistory(judgmentNum, judgmentText, initialExpansion, fina
         </div>
     `;
 
-    // Handle initial expansion - can be a string or an array of strings
-    const expansions = Array.isArray(initialExpansion) ? initialExpansion : [initialExpansion];
-    expansions.forEach((expansion, index) => {
-        const expansionLabel = expansions.length === 1 ? 'Expansion' : `Expansion ${index + 1}`;
-        contentHtml += `
-        <div class="history-item history-expansion">
-            <div class="history-item-label">${expansionLabel}:</div>
-            <div class="history-item-text">${escapeHtml(expansion)}</div>
-        </div>
-        `;
-    });
-    
-    // Get dynamic rounds content in order
-    const roundsContainer = document.getElementById('collab-rounds-container');
-    if (roundsContainer) {
-        // Get all children in order (feedback and expansion areas are interleaved)
-        const children = roundsContainer.children;
-        let feedbackCount = 1;
-        let expansionCount = 2; // Start at 2 since initial expansion is 1
-        
-        for (let i = 0; i < children.length; i++) {
-            const child = children[i];
-            
-            if (child.classList.contains('feedback-area')) {
-                const feedbackInput = child.querySelector('.feedback-input');
-                const feedbackText = feedbackInput ? feedbackInput.value : '';
-                if (feedbackText) {
-                    contentHtml += `
-                        <div class="history-item history-feedback">
-                            <div class="history-item-label">Feedback ${feedbackCount}:</div>
-                            <div class="history-item-text">${escapeHtml(feedbackText)}</div>
-                        </div>
-                    `;
-                }
-                feedbackCount++;
-            } else if (child.classList.contains('new-expansion-area')) {
-                const expansionText = child.querySelector('.expansion-text');
-                const text = expansionText ? expansionText.value : '';
-                if (text) {
-                    contentHtml += `
-                        <div class="history-item history-expansion">
-                            <div class="history-item-label">Expansion ${expansionCount}:</div>
-                            <div class="history-item-text">${escapeHtml(text)}</div>
-                        </div>
-                    `;
-                }
-                expansionCount++;
-            }
+    // Build content from rounds: candidates first, then feedback if this round was rejected
+    for (const round of currentJudgmentRounds) {
+        const candidates = round.candidates || [];
+        if (candidates.length > 0) {
+            candidates.forEach((candidate, i) => {
+                const isSelected = round.selectedCandidateIndex === i;
+                const text = candidate.angle
+                    ? `【${candidate.angle}】：\n${candidate.output}`
+                    : (candidate.output || '');
+                contentHtml += `
+                <div class="history-item history-expansion${isSelected ? ' history-selected' : ''}">
+                    <div class="history-item-label">Candidate ${i + 1}${isSelected ? ' (selected)' : ''}:</div>
+                    <div class="history-item-text">${escapeHtml(text)}</div>
+                </div>
+                `;
+            });
+        } else if (round.output) {
+            // Fallback for rounds without a candidates array
+            contentHtml += `
+            <div class="history-item history-expansion">
+                <div class="history-item-label">Expansion:</div>
+                <div class="history-item-text">${escapeHtml(round.editedOutput || round.output)}</div>
+            </div>
+            `;
         }
-        
-        // Clear the rounds container
-        roundsContainer.innerHTML = '';
+
+        // Show feedback only from rounds the user explicitly rejected (not duplicated on the next round)
+        if (round.status === 'rejected' && round.feedback) {
+            contentHtml += `
+            <div class="history-item history-feedback">
+                <div class="history-item-label">Feedback:</div>
+                <div class="history-item-text">${escapeHtml(round.feedback)}</div>
+            </div>
+            `;
+        }
     }
-    
+
+    // If accepted and the text was edited, show the final version
+    if (outcome === 'accepted' && finalText) {
+        const lastRound = currentJudgmentRounds[currentJudgmentRounds.length - 1];
+        const selIdx = lastRound?.selectedCandidateIndex;
+        const origText = (selIdx !== null && selIdx !== undefined)
+            ? (lastRound?.candidates?.[selIdx]?.output || lastRound?.output || '')
+            : (lastRound?.output || '');
+        if (finalText !== origText) {
+            contentHtml += `
+            <div class="history-item history-expansion history-final">
+                <div class="history-item-label">Final (edited):</div>
+                <div class="history-item-text">${escapeHtml(finalText)}</div>
+            </div>
+            `;
+        }
+    }
+
+    // Clear the rounds container
+    const roundsContainer = document.getElementById('collab-rounds-container');
+    if (roundsContainer) roundsContainer.innerHTML = '';
+
     const historyId = 'history-' + Date.now();
     let outcomeText = 'Rejected';
     if (outcome === 'accepted') {
         outcomeText = 'Accepted';
-    } else if (outcome === 'rejected_selected') {
-        outcomeText = 'Rejected';
     } else if (outcome === 'rejected_all') {
-        outcomeText = 'Rejected all';
+        outcomeText = 'Rejected';
     } else if (outcome === 'stopped') {
         outcomeText = 'Stopped';
     }
@@ -2052,7 +2029,7 @@ function createFeedbackArea(containerId) {
     feedbackArea.innerHTML = `
         <button class="close-feedback-btn" title="Cancel feedback">&times;</button>
         <div class="collab-input-group">
-            <label>Feedback for revision (optional):</label>
+            <label>Feedback for revision:</label>
             <div class="feedback-input-row">
                 <textarea class="feedback-input" rows="2"></textarea>
                 <button class="feedback-generate-btn generate-icon-btn"><img src="icons/up-arrow.png" alt="Generate" class="generate-icon"></button>
@@ -2105,10 +2082,15 @@ function reEnableLastAcceptRejectButtons() {
         if (expansionAreas.length > 0) {
             const lastExpansion = expansionAreas[expansionAreas.length - 1];
             const acceptBtn = lastExpansion.querySelector('.expansion-accept-btn');
-            const rejectBtn = lastExpansion.querySelector('.expansion-reject-btn');
+            const refineBtn = lastExpansion.querySelector('.expansion-refine-btn');
+            const rejectBtn = lastExpansion.querySelector('.expansion-reject-btn2');
             if (acceptBtn) {
                 acceptBtn.disabled = false;
                 acceptBtn.style.opacity = '1';
+            }
+            if (refineBtn) {
+                refineBtn.disabled = false;
+                refineBtn.style.opacity = '1';
             }
             if (rejectBtn) {
                 rejectBtn.disabled = false;
@@ -2179,22 +2161,46 @@ async function handleDynamicGenerate(feedbackId) {
     const judgmentInput = document.getElementById('judgment-input');
     const judgment = judgmentInput ? judgmentInput.value.trim() : '';
     
+    // Only pass rounds from the current judgment
+    const completedCount = rounds.filter(r => r.status === 'accepted' || r.status === 'rejected_all').length;
+    const currentJudgmentNum = completedCount + 1;
+    const currentJudgmentRounds = rounds.filter(r => r.judgmentNum === currentJudgmentNum);
+
+    // For 'rejected' rounds, output is null (only set on accept), so fill it with the selected candidate's text
+    const enrichedJudgmentRounds = currentJudgmentRounds.map(round => {
+        if (round.output !== null && round.output !== undefined) return round;
+        if (round.candidates && round.selectedCandidateIndex !== null && round.selectedCandidateIndex !== undefined) {
+            return { ...round, output: round.candidates[round.selectedCandidateIndex]?.output || null };
+        }
+        return round;
+    });
+
     try {
-        const modelOutput = await CollabSimulator.generateRound(
+        const candidates = await CollabSimulator.generateMultipleCandidates(
             task.paperId,
-            rounds,
+            enrichedJudgmentRounds,
             judgment,
             feedback
         );
 
-        // Add new round
-        const completedCount = rounds.filter(r => r.status === 'accepted' || r.status === 'rejected_all').length;
+        // Sort candidates by U4 ascending (lowest uncertainty first) if in uncertainty mode
+        if (candidates.length > 0 && candidates[0].uncertainty !== null && candidates[0].uncertainty !== undefined) {
+            candidates.sort((a, b) => {
+                const u4a = (a.u4_mc_nse !== null && a.u4_mc_nse !== undefined) ? a.u4_mc_nse : Infinity;
+                const u4b = (b.u4_mc_nse !== null && b.u4_mc_nse !== undefined) ? b.u4_mc_nse : Infinity;
+                return u4a - u4b;
+            });
+        }
+
+        // Add new round with multiple candidates
         const newRound = {
             roundId: rounds.length + 1,
             judgmentNum: completedCount + 1,
             judgment: judgment,
             feedback: feedback,
-            output: modelOutput,
+            candidates: candidates,
+            output: null,
+            selectedCandidateIndex: null,
             status: 'pending',
             timestamp: new Date().toISOString()
         };
@@ -2204,13 +2210,13 @@ async function handleDynamicGenerate(feedbackId) {
             collabRounds: updatedRounds,
             judgment: judgment
         });
-        
+
         // Hide Generate/Stop buttons in feedback area
         if (generateBtn) generateBtn.style.display = 'none';
         if (stopBtn) stopBtn.style.display = 'none';
-        
-        // Create new expansion area below the feedback area
-        createExpansionArea(feedbackArea, modelOutput);
+
+        // Create new expansion area showing all candidates
+        createExpansionArea(feedbackArea, candidates);
 
         AppState.currentState = await backend.getCurrentState(AppState.currentToken);
     } catch (error) {
@@ -2227,34 +2233,235 @@ async function handleDynamicGenerate(feedbackId) {
 }
 
 /**
- * Create a new expansion area after a feedback area
+ * Create a new expansion area after a feedback area, showing multiple candidates
  */
-function createExpansionArea(feedbackArea, modelOutput) {
+function createExpansionArea(feedbackArea, candidates) {
     const expansionId = 'expansion-' + Date.now();
-    
+
     const expansionArea = document.createElement('div');
     expansionArea.className = 'new-expansion-area';
     expansionArea.id = expansionId;
-    expansionArea.innerHTML = `
-        <div class="collab-input-group">
-            <label>New expansion:</label>
-            <textarea class="expansion-text" rows="4">${modelOutput}</textarea>
+
+    const candidatesHtml = candidates.map((_, i) => `
+        <div class="new-expansion-candidate" id="${expansionId}-c-${i}">
+            <div class="candidate-header"><label>Candidate ${i + 1}:</label></div>
+            <textarea class="candidate-text" rows="8" readonly></textarea>
         </div>
-        <div class="new-expansion-actions">
-            <button class="btn btn-primary expansion-accept-btn">Accept</button>
-            <button class="btn btn-secondary expansion-reject-btn">Reject</button>
+    `).join('');
+
+    const selectBtnsHtml = candidates.map((_, i) =>
+        `<button class="btn btn-primary new-expansion-select-btn" data-index="${i}">Candidate ${i + 1}</button>`
+    ).join('');
+
+    expansionArea.innerHTML = `
+        <div class="new-expansion-stage1">
+            <label>New expansion:</label>
+            <div class="new-expansion-candidates-list">${candidatesHtml}</div>
+            <div class="new-expansion-select-buttons">
+                ${selectBtnsHtml}
+                <button class="btn btn-secondary new-expansion-reject-btn">Reject</button>
+            </div>
+        </div>
+        <div class="new-expansion-stage2" style="display:none;">
+            <label>New expansion:</label>
+            <textarea class="expansion-text" rows="6"></textarea>
+            <div class="new-expansion-actions">
+                <button class="btn btn-primary expansion-accept-btn">Accept</button>
+                <button class="btn btn-secondary expansion-refine-btn">Refine</button>
+                <button class="btn btn-secondary expansion-reject-btn2">Back</button>
+            </div>
         </div>
     `;
-    
+
+    // Set textarea values safely (avoids XSS via innerHTML)
+    // NOTE: use expansionArea.querySelector, not document.getElementById, since the element
+    // is not yet in the DOM at this point.
+    candidates.forEach((candidate, i) => {
+        const candidateEl = expansionArea.querySelector(`#${expansionId}-c-${i}`);
+        const textarea = candidateEl?.querySelector('.candidate-text');
+        if (textarea) {
+            textarea.value = candidate.angle
+                ? `【${candidate.angle}】：\n${candidate.output}`
+                : (candidate.output || '');
+        }
+    });
+
     // Insert after the feedback area
     feedbackArea.parentNode.insertBefore(expansionArea, feedbackArea.nextSibling);
-    
-    // Add event listeners
+
+    // Hide feedback area close button while expansion is shown
+    const closeBtn = feedbackArea.querySelector('.close-feedback-btn');
+    if (closeBtn) closeBtn.style.display = 'none';
+
+    // Select buttons (stage 1) → transition to stage 2
+    expansionArea.querySelectorAll('.new-expansion-select-btn').forEach(btn => {
+        const index = parseInt(btn.dataset.index);
+        btn.addEventListener('click', () => handleExpansionSelectCandidate(expansionId, index, candidates));
+    });
+
+    // Reject in stage 1 = reject all, end interaction
+    const rejectBtn1 = expansionArea.querySelector('.new-expansion-reject-btn');
+    if (rejectBtn1) rejectBtn1.addEventListener('click', () => handleDynamicRejectAll(expansionId));
+
+    // Stage 2 buttons
     const acceptBtn = expansionArea.querySelector('.expansion-accept-btn');
-    const rejectBtn = expansionArea.querySelector('.expansion-reject-btn');
-    
-    acceptBtn.addEventListener('click', () => handleDynamicAccept(expansionId));
-    rejectBtn.addEventListener('click', () => handleDynamicReject(expansionId));
+    const refineBtn = expansionArea.querySelector('.expansion-refine-btn');
+    const rejectBtn2 = expansionArea.querySelector('.expansion-reject-btn2');
+
+    if (acceptBtn) acceptBtn.addEventListener('click', () => handleDynamicAccept(expansionId));
+    if (refineBtn) refineBtn.addEventListener('click', () => handleDynamicRefine(expansionId));
+    if (rejectBtn2) rejectBtn2.addEventListener('click', () => {
+        const stage1 = expansionArea.querySelector('.new-expansion-stage1');
+        const stage2 = expansionArea.querySelector('.new-expansion-stage2');
+        if (stage1) stage1.style.display = '';
+        if (stage2) stage2.style.display = 'none';
+    });
+}
+
+/**
+ * Handle candidate selection within a new expansion area (stage 1 → stage 2)
+ */
+function handleExpansionSelectCandidate(expansionId, candidateIndex, candidates) {
+    const expansionArea = document.getElementById(expansionId);
+    if (!expansionArea) return;
+
+    const stage1 = expansionArea.querySelector('.new-expansion-stage1');
+    const stage2 = expansionArea.querySelector('.new-expansion-stage2');
+    const expansionText = expansionArea.querySelector('.expansion-text');
+
+    const candidate = candidates[candidateIndex];
+    const output = candidate.angle
+        ? `【${candidate.angle}】：\n${candidate.output}`
+        : (candidate.output || '');
+
+    if (expansionText) expansionText.value = output;
+    expansionArea.dataset.selectedIndex = String(candidateIndex);
+
+    if (stage1) stage1.style.display = 'none';
+    if (stage2) stage2.style.display = 'block';
+}
+
+/**
+ * Handle Refine in a new expansion area: mark round as rejected, create new feedback area
+ */
+async function handleDynamicRefine(expansionId) {
+    const expansionArea = document.getElementById(expansionId);
+    if (!expansionArea) return;
+
+    const taskIndex = AppState.currentTaskIndex;
+    const task = AppState.assignment.tasks.find(t => t.index === taskIndex);
+
+    const state = await backend.getCurrentState(AppState.currentToken);
+    AppState.currentState = state;
+    const taskState = state.tasks[taskIndex] || {};
+    const rounds = [...(taskState.collabRounds || [])];
+
+    const pendingRound = rounds.find(r => r.status === 'pending');
+    if (pendingRound) {
+        pendingRound.status = 'rejected';
+    }
+
+    await backend.saveState(AppState.currentToken, taskIndex, { collabRounds: rounds });
+
+    await backend.appendEvent({
+        participant_token: AppState.currentToken,
+        participant_id: AppState.assignment.participantId,
+        task_index: taskIndex,
+        paper_id: task.paperId,
+        paradigm: task.paradigm,
+        round_id: pendingRound?.roundId,
+        event_type: 'reject',
+        timestamp: new Date().toISOString()
+    });
+
+    // Disable stage 2 buttons so user can't act on this expansion again
+    ['expansion-accept-btn', 'expansion-refine-btn', 'expansion-reject-btn2'].forEach(cls => {
+        const btn = expansionArea.querySelector('.' + cls);
+        if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
+    });
+
+    // Create a new feedback area in the rounds container (below the expansion)
+    createFeedbackArea('collab-rounds-container');
+
+    AppState.currentState = await backend.getCurrentState(AppState.currentToken);
+}
+
+/**
+ * Handle Reject in a new expansion area: reject all candidates, end this judgment interaction
+ */
+async function handleDynamicRejectAll(expansionId) {
+    const expansionArea = document.getElementById(expansionId);
+    if (!expansionArea) return;
+
+    const taskIndex = AppState.currentTaskIndex;
+    const task = AppState.assignment.tasks.find(t => t.index === taskIndex);
+
+    const state = await backend.getCurrentState(AppState.currentToken);
+    AppState.currentState = state;
+    const taskState = state.tasks[taskIndex] || {};
+    const rounds = [...(taskState.collabRounds || [])];
+
+    const pendingRound = rounds.find(r => r.status === 'pending');
+    if (pendingRound) {
+        pendingRound.status = 'rejected_all';
+    }
+
+    await backend.saveState(AppState.currentToken, taskIndex, { collabRounds: rounds });
+
+    await backend.appendEvent({
+        participant_token: AppState.currentToken,
+        participant_id: AppState.assignment.participantId,
+        task_index: taskIndex,
+        paper_id: task.paperId,
+        paradigm: task.paradigm,
+        round_id: pendingRound?.roundId,
+        event_type: 'reject_all',
+        timestamp: new Date().toISOString()
+    });
+
+    // Count completed judgments and build history from full rounds data
+    const completedCount = rounds.filter(r => r.status === 'accepted' || r.status === 'rejected_all').length;
+    const pendingJudgmentNum = pendingRound?.judgmentNum || completedCount;
+    const currentJudgmentRoundsForHistory = rounds.filter(r => r.judgmentNum === pendingJudgmentNum);
+    createJudgmentHistory(pendingJudgmentNum, currentJudgmentRoundsForHistory, '', 'rejected_all');
+
+    // Hide the first-round generated area (candidate-confirm-stage may still be visible
+    // if the user took the Refine path from the first round's stage 2)
+    const generatedArea = document.getElementById('collab-generated-area');
+    if (generatedArea) generatedArea.style.display = 'none';
+
+    // Reset first-round stage 1/2 state for next use
+    const selectionStage = document.getElementById('candidates-selection-stage');
+    const confirmStage = document.getElementById('candidate-confirm-stage');
+    if (selectionStage) selectionStage.style.display = 'block';
+    if (confirmStage) confirmStage.style.display = 'none';
+
+    // Re-enable Stage 2 buttons for next use
+    const acceptSelectedBtn = document.getElementById('accept-selected-btn');
+    const refineSelectedBtn = document.getElementById('refine-selected-btn');
+    const rejectSelectedBtn = document.getElementById('reject-selected-btn');
+    if (acceptSelectedBtn) { acceptSelectedBtn.disabled = false; acceptSelectedBtn.style.opacity = '1'; }
+    if (refineSelectedBtn) { refineSelectedBtn.disabled = false; refineSelectedBtn.style.opacity = '1'; }
+    if (rejectSelectedBtn) { rejectSelectedBtn.disabled = false; rejectSelectedBtn.style.opacity = '1'; }
+
+    // Re-enable input area for the next judgment
+    const collabInputArea = document.getElementById('collab-input-area');
+    if (collabInputArea) collabInputArea.style.display = 'block';
+
+    const judgmentInput = document.getElementById('judgment-input');
+    if (judgmentInput) { judgmentInput.value = ''; judgmentInput.disabled = false; }
+
+    const textSnippetInput = document.getElementById('text-snippet-input');
+    if (textSnippetInput) { textSnippetInput.value = ''; textSnippetInput.disabled = false; }
+
+    const generateBtn = document.getElementById('generate-btn');
+    if (generateBtn) {
+        generateBtn.style.display = 'inline-block';
+        generateBtn.disabled = false;
+        generateBtn.innerHTML = '<img src="icons/up-arrow.png" alt="Generate" class="generate-icon">';
+    }
+
+    AppState.currentState = await backend.getCurrentState(AppState.currentToken);
 }
 
 /**
@@ -2275,42 +2482,27 @@ async function handleDynamicAccept(expansionId) {
     const taskIndex = AppState.currentTaskIndex;
     const task = AppState.assignment.tasks.find(t => t.index === taskIndex);
     
-    // Get judgment text before clearing
-    const judgmentInput = document.getElementById('judgment-input');
-    const judgmentText = judgmentInput ? judgmentInput.value.trim() : '';
-    
     // Get fresh state
     const state = await backend.getCurrentState(AppState.currentToken);
     AppState.currentState = state;
     const taskState = state.tasks[taskIndex] || {};
     const rounds = [...(taskState.collabRounds || [])];
-    
-    // Get the initial expansion from the first round of this judgment
+
     const completedCount = rounds.filter(r => r.status === 'accepted' || r.status === 'rejected_all').length;
     const currentJudgmentNum = completedCount + 1;
     const currentJudgmentRounds = rounds.filter(r => r.judgmentNum === currentJudgmentNum);
-    
-    let initialExpansion = '';
-    if (currentJudgmentRounds.length > 0) {
-        const firstRound = currentJudgmentRounds[0];
-        if (firstRound.candidates && firstRound.selectedCandidateIndex !== null && firstRound.selectedCandidateIndex !== undefined) {
-            initialExpansion = firstRound.candidates[firstRound.selectedCandidateIndex]?.output || '';
-        } else if (firstRound.output) {
-            initialExpansion = firstRound.output;
-        }
-    }
-    
-    // Fallback to selected-candidate-text if not found
-    if (!initialExpansion) {
-        const selectedTextEl = document.getElementById('selected-candidate-text');
-        initialExpansion = selectedTextEl ? selectedTextEl.value : '';
-    }
 
     // Find and update the pending round
     const pendingRound = rounds.find(r => r.status === 'pending');
     if (pendingRound) {
         pendingRound.status = 'accepted';
         pendingRound.editedOutput = editedOutput;
+        // Save selected candidate index if this is a multi-candidate expansion round
+        const expansionArea = document.getElementById(expansionId);
+        const selIdx = expansionArea ? parseInt(expansionArea.dataset.selectedIndex) : NaN;
+        if (!isNaN(selIdx) && selIdx >= 0) {
+            pendingRound.selectedCandidateIndex = selIdx;
+        }
     }
 
     // Append to final review
@@ -2341,8 +2533,7 @@ async function handleDynamicAccept(expansionId) {
     });
 
     // Create judgment history before clearing (note: createJudgmentHistory will clear collab-rounds-container)
-    // Use currentJudgmentNum which was already calculated correctly above
-    createJudgmentHistory(currentJudgmentNum, judgmentText, initialExpansion, editedOutput, 'accepted');
+    createJudgmentHistory(currentJudgmentNum, currentJudgmentRounds, editedOutput, 'accepted');
     
     // Hide original generated area
     const generatedArea = document.getElementById('collab-generated-area');
@@ -2377,15 +2568,16 @@ async function handleDynamicAccept(expansionId) {
         judgmentLabel.textContent = 'Judgment:';
     }
 
-    // Clear and show judgment input for next judgment
-    if (judgmentInput) judgmentInput.value = '';
-    
+    // Clear and re-enable judgment input for next judgment
+    const judgmentInput = document.getElementById('judgment-input');
+    if (judgmentInput) { judgmentInput.value = ''; judgmentInput.disabled = false; }
+
     const textSnippetInput = document.getElementById('text-snippet-input');
-    if (textSnippetInput) textSnippetInput.value = '';
-    
+    if (textSnippetInput) { textSnippetInput.value = ''; textSnippetInput.disabled = false; }
+
     const collabInputArea = document.getElementById('collab-input-area');
     if (collabInputArea) collabInputArea.style.display = 'block';
-    
+
     const generateBtn = document.getElementById('generate-btn');
     if (generateBtn) {
         generateBtn.style.display = 'inline-block';
@@ -2397,71 +2589,9 @@ async function handleDynamicAccept(expansionId) {
 }
 
 /**
- * Handle dynamic reject
- */
-async function handleDynamicReject(expansionId) {
-    const expansionArea = document.getElementById(expansionId);
-    if (!expansionArea) return;
-    
-    const taskIndex = AppState.currentTaskIndex;
-    const task = AppState.assignment.tasks.find(t => t.index === taskIndex);
-    
-    // Get fresh state
-    const state = await backend.getCurrentState(AppState.currentToken);
-    AppState.currentState = state;
-    const taskState = state.tasks[taskIndex] || {};
-    const rounds = [...(taskState.collabRounds || [])];
-
-    // Find and update the pending round to rejected
-    const pendingRound = rounds.find(r => r.status === 'pending');
-    if (pendingRound) {
-        pendingRound.status = 'rejected';
-    }
-
-    await backend.saveState(AppState.currentToken, taskIndex, {
-        collabRounds: rounds
-    });
-
-    await backend.appendEvent({
-        participant_token: AppState.currentToken,
-        participant_id: AppState.assignment.participantId,
-        task_index: taskIndex,
-        paper_id: task.paperId,
-        paradigm: task.paradigm,
-        round_id: pendingRound?.roundId,
-        event_type: 'reject',
-        timestamp: new Date().toISOString()
-    });
-
-    // Disable Accept/Reject buttons
-    const acceptBtn = expansionArea.querySelector('.expansion-accept-btn');
-    const rejectBtn = expansionArea.querySelector('.expansion-reject-btn');
-    if (acceptBtn) {
-        acceptBtn.disabled = true;
-        acceptBtn.style.opacity = '0.5';
-    }
-    if (rejectBtn) {
-        rejectBtn.disabled = true;
-        rejectBtn.style.opacity = '0.5';
-    }
-
-    // Create new feedback area below the expansion
-    const container = document.getElementById('collab-rounds-container');
-    if (container) {
-        createFeedbackArea('collab-rounds-container');
-    }
-
-    AppState.currentState = await backend.getCurrentState(AppState.currentToken);
-}
-
-/**
  * Handle dynamic stop
  */
 async function handleDynamicStop(feedbackId) {
-    // Get judgment text before clearing
-    const judgmentInput = document.getElementById('judgment-input');
-    const judgmentText = judgmentInput ? judgmentInput.value.trim() : '';
-    
     // Get state for counting and expansion data
     const taskIndex = AppState.currentTaskIndex;
     const task = AppState.assignment.tasks.find(t => t.index === taskIndex);
@@ -2474,24 +2604,7 @@ async function handleDynamicStop(feedbackId) {
     // Find the current judgment's rounds (all rounds with the same judgmentNum)
     const currentJudgmentNum = completedCount + 1;
     const currentJudgmentRounds = rounds.filter(r => r.judgmentNum === currentJudgmentNum);
-    
-    // Get the first expansion from this judgment (from selected candidate or first round's output)
-    let initialExpansion = '';
-    if (currentJudgmentRounds.length > 0) {
-        const firstRound = currentJudgmentRounds[0];
-        if (firstRound.candidates && firstRound.selectedCandidateIndex !== null && firstRound.selectedCandidateIndex !== undefined) {
-            initialExpansion = firstRound.candidates[firstRound.selectedCandidateIndex]?.output || '';
-        } else if (firstRound.output) {
-            initialExpansion = firstRound.output;
-        }
-    }
-    
-    // Also try to get from the current UI if not found in rounds
-    if (!initialExpansion) {
-        const selectedTextEl = document.getElementById('selected-candidate-text');
-        initialExpansion = selectedTextEl ? selectedTextEl.value : '';
-    }
-    
+
     // Mark the last round as stopped
     if (rounds.length > 0) {
         const lastRound = rounds[rounds.length - 1];
@@ -2519,7 +2632,7 @@ async function handleDynamicStop(feedbackId) {
     const outcome = hasRejectedRound ? 'rejected' : 'stopped';
 
     // Create judgment history using the CURRENT judgment number (not acceptedCount + 1 for next)
-    createJudgmentHistory(currentJudgmentNum, judgmentText, initialExpansion, '', outcome);
+    createJudgmentHistory(currentJudgmentNum, currentJudgmentRounds, '', outcome);
     
     // Hide original generated area
     const generatedArea = document.getElementById('collab-generated-area');

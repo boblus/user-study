@@ -130,41 +130,10 @@
                             <!-- Stage 1: Select from candidates -->
                             <div id="candidates-selection-stage">
                                 <div class="candidates-container">
-                                    <div class="candidate" id="candidate-0">
-                                        <div class="candidate-header">
-                                            <label>Candidate 1:</label>
-                                            <div class="candidate-uncertainty" style="display:none;">
-                                                <span class="uncertainty-badge u13-badge" title="Average of U1 (avg NLL), U2 (mean entropy), U3 (MSP)">U1-3: <span class="u13-value">—</span></span>
-                                                <span class="uncertainty-badge u4-badge" title="U4: MC sampling uncertainty (mean NLL across samples)">U4: <span class="u4-value">—</span></span>
-                                            </div>
-                                        </div>
-                                        <textarea class="candidate-text" rows="10" readonly></textarea>
-                                    </div>
-                                    <div class="candidate" id="candidate-1">
-                                        <div class="candidate-header">
-                                            <label>Candidate 2:</label>
-                                            <div class="candidate-uncertainty" style="display:none;">
-                                                <span class="uncertainty-badge u13-badge" title="Average of U1 (avg NLL), U2 (mean entropy), U3 (MSP)">U1-3: <span class="u13-value">—</span></span>
-                                                <span class="uncertainty-badge u4-badge" title="U4: MC sampling uncertainty (mean NLL across samples)">U4: <span class="u4-value">—</span></span>
-                                            </div>
-                                        </div>
-                                        <textarea class="candidate-text" rows="10" readonly></textarea>
-                                    </div>
-                                    <div class="candidate" id="candidate-2">
-                                        <div class="candidate-header">
-                                            <label>Candidate 3:</label>
-                                            <div class="candidate-uncertainty" style="display:none;">
-                                                <span class="uncertainty-badge u13-badge" title="Average of U1 (avg NLL), U2 (mean entropy), U3 (MSP)">U1-3: <span class="u13-value">—</span></span>
-                                                <span class="uncertainty-badge u4-badge" title="U4: MC sampling uncertainty (mean NLL across samples)">U4: <span class="u4-value">—</span></span>
-                                            </div>
-                                        </div>
-                                        <textarea class="candidate-text" rows="10" readonly></textarea>
-                                    </div>
+                                    <!-- Candidate cards are dynamically rendered by app.js -->
                                 </div>
                                 <div class="candidates-buttons-container">
-                                    <button class="btn btn-primary select-candidate-btn" data-index="0">Candidate 1</button>
-                                    <button class="btn btn-primary select-candidate-btn" data-index="1">Candidate 2</button>
-                                    <button class="btn btn-primary select-candidate-btn" data-index="2">Candidate 3</button>
+                                    <!-- Select buttons are dynamically rendered by app.js -->
                                     <button id="reject-all-btn" class="btn btn-secondary">Reject all</button>
                                 </div>
                             </div>
@@ -177,7 +146,7 @@
                                 <div class="collab-generated-actions">
                                     <button id="accept-selected-btn" class="btn btn-primary">Accept</button>
                                     <button id="refine-selected-btn" class="btn btn-secondary">Refine</button>
-                                    <button id="reject-selected-btn" class="btn btn-secondary">Reject</button>
+                                    <button id="reject-selected-btn" class="btn btn-secondary">Back</button>
                                 </div>
                             </div>
                         </div>
