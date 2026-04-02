@@ -512,10 +512,10 @@ function getInstructionsHTML(paradigm, isFullPage) {
             <p>In this task, you will produce a review by <strong>collaborating with a review generation system</strong>. Please read the instructions carefully.</p>
             <br>
             <${headingTag}>1. Read the paper first</${headingTag}>
-            <p>Please read the assigned paper carefully before starting the timed writing phase. We recommend skimming once and then reading in depth before starting the timed phase.</p>
+            <p>Please read the assigned paper carefully before starting writing. We recommend <strong>skimming once and then reading in depth</strong> before starting writing.</p>
             <br>
-            <${headingTag}>2. Start the timed writing phase</${headingTag}>
-            <p>Once you have finished reading, click <img src="icons/start-writing.png" alt="Start writing" class="btn-icon">. Timing begins at this moment. Please try to reserve at least 120 minutes of uninterrupted time for writing, since we would like to record the completion time. If you need to step away, please click <img src="icons/pause.png" alt="Pause" class="btn-icon">.</p>
+            <${headingTag}>2. Start the writing phase</${headingTag}>
+            <p>Once you have finished reading, click <img src="icons/start-writing.png" alt="Start writing" class="btn-icon">. Please try to <strong>reserve at least 120 minutes</strong> of uninterrupted time for writing.</p>
             <br>
             <${headingTag}>3. Collaborate with the system</${headingTag}>
             <p>You will write the review by iterating over multiple <strong>judgement</strong> → <strong>generation</strong> → <strong>selection</strong> cycles.</p>
@@ -523,22 +523,26 @@ function getInstructionsHTML(paradigm, isFullPage) {
             <ul>
                 <li><p><strong>Step A: Enter a judgment (one at a time)</strong></p>
                 <ul>
-                    <li><p>In the Judgement block, write one strength/weakness point you want to raise in the review (e.g., "Clarity is a strength").</p></li>
+                    <li><p>In the Judgment expansion block, write one strength/weakness point you want to raise in the review (e.g., &ldquo;Clarity is a strength&rdquo;, &ldquo;The method is well-motivated&rdquo;, &ldquo;The experiments are insufficient&rdquo;).</p></li>
                     <li><p>If your judgment refers to a specific sentence/paragraph/section of the paper, you may paste it in the Text snippet block to provide context to the system.</p></li>
                 </ul></li>
                 <li><p><strong>Step B: Generate candidates</strong></p>
-                <p>After you submit your judgment, click <img src="icons/up-arrow.png" alt="Generate" class="btn-icon"> to generate review comments. The system will generate 3 candidate review comments. Since the system sends a real-time request, it may take a few seconds to respond.</p></li>
-                <li><p><strong>Step C: Accept, Refine or Reject</strong></p>
+                <p>After typing in your judgment, click <img src="icons/up-arrow.png" alt="Generate" class="btn-icon"> or hit Enter to generate review comments. The system will generate multiple candidate review comments. Since the system sends a real-time request, it may take a few seconds to respond.</p></li>
+                <li><p><strong>Step C: Select, Accept, Refine or Reject</strong></p>
                 <ul>
-                    <li><p>If the generated comment is satisfactory, click <img src="icons/accept.png" alt="Accept" class="btn-icon"> and move on to the next judgment.</p></li>
-                    <li><p>If the generated comment is not satisfactory, click <img src="icons/refine.png" alt="Refine" class="btn-icon"> to provide feedback and let the system generate a new candidate based on your feedback.</p></li>
-                    <li><p>If further interaction is not helpful for a particular point, click <img src="icons/reject.png" alt="Reject" class="btn-icon"> to stop iterating on that point and proceed to the next judgment.</p></li>
+                    <li><p>Select the candidate review comment that you find appropriate.</p></li>
+                    <ul>
+                        <li><p>If the selected comment is satisfactory, click <img src="icons/accept.png" alt="Accept" class="btn-icon"> and move on to the next judgment.</p></li>
+                        <li><p>If the selected comment is not satisfactory, click <img src="icons/refine.png" alt="Refine" class="btn-icon"> to provide feedback and let the system generate new review comments based on your feedback.</p></li>
+                        <li><p>If further interaction would not be helpful, click <img src="icons/reject.png" alt="Reject" class="btn-icon"> to stop iterating and proceed to the next judgment.</p></li>
+                    </ul></li>
+                    <li><p>If none of the candidate review comments is appropriate, click <img src="icons/reject_all.png" alt="Reject" class="btn-icon"> to proceed to the next judgment.</p></li>
                 </ul></li>
             </ul>
-            <p>You may <strong>repeat steps A-C multiple rounds</strong> until you have covered the strengths, weakness, and suggestions you want to include.</p>
+            <p>You may <strong>repeat steps A-C multiple rounds</strong> until you have covered the points you want to include.</p>
             <br>
             <${headingTag}>4. Output</${headingTag}>
-            <p>Please output only the <strong>Strengths</strong>, <strong>Weaknesses</strong>, and <strong>Comments/Suggestions/Typos</strong> (if there are any) sections. You do <strong>not</strong> need to write a paper summary or provide review scores. Please follow the current ARR review guidelines as a reference:</p>
+            <p>Please output only the <strong>strengths</strong>, <strong>weaknesses</strong>, and <strong>comments/suggestions/typos</strong> (if there are any) sections. You <strong>do not need to write a paper summary or provide review scores</strong>. Please follow the current ARR review guidelines as a reference:</p>
             <br>
             <ul>
                 <li><strong>Summary of Strengths:</strong> What are the major reasons to publish this paper at a selective *ACL venue? These could include novel and useful methodology, insightful empirical results or theoretical analysis, clear organization of related literature, or any other reason why interested readers of *ACL papers may find the paper useful.</li>
@@ -1662,10 +1666,15 @@ async function handleBackToCandidates() {
     const taskState = state.tasks[taskIndex] || {};
     const rounds = [...(taskState.collabRounds || [])];
 
-    // Clear selectedCandidateIndex from the pending round
-    const pendingRound = rounds.find(r => r.status === 'pending');
+    // Clear selectedCandidateIndex from the pending round (also check 'rejected' status,
+    // which happens when user clicked Refine then closed the feedback without generating)
+    const pendingRound = rounds.find(r => r.status === 'pending') || rounds.find(r => r.status === 'rejected');
     if (pendingRound) {
         pendingRound.selectedCandidateIndex = null;
+        // If refine was clicked (status='rejected') but user is going back, restore to pending
+        if (pendingRound.status === 'rejected') {
+            pendingRound.status = 'pending';
+        }
     }
 
     await backend.saveState(AppState.currentToken, taskIndex, {
@@ -1790,7 +1799,17 @@ function restoreJudgmentHistory(rounds) {
         
         // Build history content using same logic as createJudgmentHistory
         const judgmentText = groupRounds[0].judgment || '';
-        let contentHtml = `
+        const snippetText = groupRounds[0].textSnippet || '';
+        let contentHtml = '';
+        if (snippetText) {
+            contentHtml += `
+            <div class="history-item">
+                <div class="history-item-label">Text snippet:</div>
+                <div class="history-item-text">${escapeHtml(snippetText)}</div>
+            </div>
+            `;
+        }
+        contentHtml += `
             <div class="history-item">
                 <div class="history-item-label">Judgment:</div>
                 <div class="history-item-text">${escapeHtml(judgmentText)}</div>
@@ -1892,8 +1911,18 @@ function createJudgmentHistory(judgmentNum, currentJudgmentRounds, finalText, ou
     if (!historyContainer) return;
 
     const judgmentText = currentJudgmentRounds.length > 0 ? (currentJudgmentRounds[0].judgment || '') : '';
+    const snippetText = currentJudgmentRounds.length > 0 ? (currentJudgmentRounds[0].textSnippet || '') : '';
 
-    let contentHtml = `
+    let contentHtml = '';
+    if (snippetText) {
+        contentHtml += `
+        <div class="history-item">
+            <div class="history-item-label">Text snippet:</div>
+            <div class="history-item-text">${escapeHtml(snippetText)}</div>
+        </div>
+        `;
+    }
+    contentHtml += `
         <div class="history-item">
             <div class="history-item-label">Judgment:</div>
             <div class="history-item-text">${escapeHtml(judgmentText)}</div>

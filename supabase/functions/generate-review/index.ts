@@ -117,17 +117,46 @@ async function callLLM(systemPrompt: string, userPrompt: string, temperature: nu
 async function handleBaseline(params: GenerateParams): Promise<Response> {
   const { paperContent, previousRounds, judgment, feedback, textSnippet, temperature, seed } = params
 
-  const systemPrompt = `You are an expert peer reviewer assistant. Your task is to help expand a single review point (judgment) into a well-written review comment by generating multiple diverse candidates.
+  const systemPrompt = `Please turn a single review point (judgment) into multiple strong review comments.
 
-IMPORTANT GUIDELINES:
-1. The user provides ONE judgment point (either a strength, weakness, or a suggestion of the paper).
-2. The user may also provide a text snippet extracted from the paper as relevant context for their judgment point.
-3. Your job is to:
-   (a) First, analyze the judgment point and identify how many distinct angles/aspects it naturally supports (between 2 and 5).
-   (b) Then, generate one candidate per angle (minimum 2, maximum 5). Choose the number that best fits the judgment. Do not force extra angles if they would be redundant.
-4. Each candidate should be a CONCISE expansion of the judgment point, typically 2-3 sentences that form a focused review point. Not too brief to be vague, not too lengthy to overwhelm the reader.
-5. The candidates MUST have clear differentiation; they should explore different aspects, emphasize different points, or use different reasoning, based on the same core judgment.
-6. Follow the provided review guidelines.
+The goal is NOT to merely paraphrase or mechanically extend the user's judgment. The goal is to:
+- Identify evidence in the paper that can support the judgment.
+- Use explicit reasoning to explain why the evidence supports the judgment.
+
+A strong candidate review comment should therefore do three things:
+- Stay faithful to the user's judgment.
+- Cite or reflect concrete paper-specific evidence.
+- Connect the evidence to the judgment through clear reasoning.
+
+Bad candidates are those that:
+- Simply restate the judgment with stronger wording.
+- Use generic review phrases without paper-specific support.
+- Mention evidence but fail to explain why it matters.
+- Introduce claims not grounded in the paper.
+
+**IMPORTANT GUIDELINES**
+- The user provides ONE judgment point (a strength, weakness, or a suggestion of the paper).
+- The user may also provide a text snippet extracted from the paper as relevant context for their judgment point.
+- You should use the paper content as the primary source of support. Prefer the provided text snippet when present, but also use the broader paper content if needed.
+- Your job is to:
+   (a) First, analyze the judgment point and identify how many distinct angles/aspects it naturally supports (minimum 2, maximum 5). Choose the number that best fits the judgment. Do not force extra angles if they would be redundant.
+   (b) Then, generate one candidate per angle.
+- Each candidate should be a CONCISE review comment, typically 3-5 sentences. Not too brief to be vague, not too lengthy to overwhelm the reader.
+- Do NOT produce candidates that only restate the judgment in different words.
+- Do NOT invent evidence that is not supported by the paper content or snippet.
+- The candidates MUST be clearly differentiated. They should explore different angles/aspects, emphasize different evidence, or use different reasoning.
+- Follow the provided review guidelines.
+
+**Output format**
+Output MUST follow this EXACT format (N between 2 and 5). NO EXTRA NOTES, COMMENTS, OR SYMBOLS OF ANY KIND:
+
+CANDIDATE 1: <angle label>: <expansion>
+CANDIDATE 2: <angle label>: <expansion>
+...
+CANDIDATE N: <angle label>: <expansion>
+
+Example output:
+CANDIDATE 1: Theoretical grounding: The argument would benefit from a stronger theoretical basis...
 
 ${REVIEW_GUIDELINES}`
 
@@ -144,61 +173,36 @@ Text snippet from the paper (relevant context):
 
 ---
 ` : ''}
-User's judgment point to expand: "${judgment}"
-
-Generate between 2 and 5 diverse candidates for expanding this judgment point. Choose the count that best reflects the natural angle space of the judgment:
-1. First, identify the distinct angles or aspects this judgment supports (2–5).
-2. Then, generate one expansion per angle.
-3. Ensure the candidates have clear differentiation while all being valid expansions of the same judgment.
-
-Output MUST follow this EXACT format (N between 2 and 5). NO EXTRA NOTES, COMMENTS, OR SYMBOLS OF ANY KIND:
-CANDIDATE 1: <angle label>: <expansion>
-
-CANDIDATE 2: <angle label>: <expansion>
-
-...
-
-CANDIDATE N: <angle label>: <expansion>
-
-Example output:
-CANDIDATE 1: Theoretical grounding: The argument would benefit from a stronger theoretical basis...`
+User's judgment point to expand: "${judgment}"`
 
   } else {
-    const historyText = previousRounds.map((round: any, idx: number) => {
-      let roundText = `Expansion ${idx + 1}: ${round.output}`
-      if (round.status === 'rejected' && round.feedback) {
-        roundText += `\n(User feedback: ${round.feedback})`
-      }
-      return roundText
-    }).join('\n\n')
+    const lastRound = previousRounds[previousRounds.length - 1]
+    const selectedCandidate = lastRound.output
 
     userPrompt = `Paper content:
 ${paperContent}
 
 ---
 
-Previous expansion attempts:
-${historyText}
+Candidate to refine:
+${selectedCandidate}
 
 ---
-${textSnippet ? `
-Text snippet from the paper (relevant context):
-"${textSnippet}"
 
----
-` : ''}
 ${feedback ? `User's feedback for improvement: "${feedback}"` : ''}
 
-Based on the previous expansion attempts and the user's feedback, please generate between 2 and 5 improved candidates. Each candidate should be a direct improvement upon the previous expansions, specifically incorporating the user's feedback. Each candidate should retain the same angle label as the expansion it improves upon. Do not change or invent new angle labels. Do NOT start from scratch or ignore the prior attempts. Ensure the candidates have clear differentiation from each other while all addressing the feedback.
+Based on the candidate above and the user's feedback, please generate between 2 and 5 refined versions of this candidate. Each refined version should directly incorporate the user's feedback. Retain the same angle label as the original candidate. Do NOT change or invent new angle labels. Do NOT start from scratch or ignore the original candidate. Ensure the refined versions have clear differentiation from each other while all addressing the feedback.
 
-Output should be in this EXACT format (N between 2 and 5), with ABSOLUTELY NO EXTRA NOTES OR COMMENTS:
+**Output format**
+Output MUST follow this EXACT format (N between 2 and 5). NO EXTRA NOTES, COMMENTS, OR SYMBOLS OF ANY KIND:
+
 CANDIDATE 1: <angle label>: <expansion>
-
 CANDIDATE 2: <angle label>: <expansion>
-
 ...
+CANDIDATE N: <angle label>: <expansion>
 
-CANDIDATE N: <angle label>: <expansion>`
+Example output:
+CANDIDATE 1: Theoretical grounding: The argument would benefit from a stronger theoretical basis...`
   }
 
   const data = await callLLM(systemPrompt, userPrompt, temperature, seed)
@@ -392,33 +396,22 @@ User's judgment point: "${judgment}"
 Please identify 3 distinct angles or aspects to approach this judgment point.`
 
   } else {
-    const historyText = previousRounds.map((round: any, idx: number) => {
-      let roundText = `Expansion ${idx + 1}: ${round.output}`
-      if (round.status === 'rejected' && round.feedback) {
-        roundText += `\n(User feedback: ${round.feedback})`
-      }
-      return roundText
-    }).join('\n\n')
+    const lastRound = previousRounds[previousRounds.length - 1]
+    const selectedCandidate = lastRound.output
 
     anglesUserPrompt = `Paper content:
 ${paperContent}
 
 ---
 
-Previous expansion attempts:
-${historyText}
+Candidate to refine:
+${selectedCandidate}
 
 ---
-${textSnippet ? `
-Text snippet from the paper (relevant context):
-"${textSnippet}"
 
----
-` : ''}
-${judgment ? `User's updated judgment: "${judgment}"` : ''}
 ${feedback ? `User's feedback for improvement: "${feedback}"` : ''}
 
-Please identify 3 distinct angles or aspects to approach this judgment point, taking into account the user's feedback.`
+Please identify 3 distinct angles or aspects to refine this candidate, taking into account the user's feedback.`
   }
 
   const anglesData = await callLLM(anglesSystemPrompt, anglesUserPrompt, 0, seed)
@@ -478,28 +471,16 @@ ${paperContent}
 
 ---
 
-Previous expansion attempts:
-${previousRounds.map((round: any, idx: number) => {
-  let roundText = `Expansion ${idx + 1}: ${round.output}`
-  if (round.status === 'rejected' && round.feedback) {
-    roundText += `\n(User feedback: ${round.feedback})`
-  }
-  return roundText
-}).join('\n\n')}
+Candidate to refine:
+${previousRounds[previousRounds.length - 1].output}
 
 ---
-${textSnippet ? `
-Text snippet from the paper (relevant context):
-"${textSnippet}"
 
----
-` : ''}
-${judgment ? `User's updated judgment: "${judgment}"` : ''}
 ${feedback ? `User's feedback for improvement: "${feedback}"` : ''}
 
 Angle to focus on: "${angle}"
 
-Please generate an improved expansion from this specific angle, addressing the user's feedback. Output only the expanded review comment.`
+Please generate a refined version of the candidate from this specific angle, addressing the user's feedback. Output only the refined review comment.`
 
       return callLLM(expandSystemPrompt, userPrompt, temperature, s)
     })
