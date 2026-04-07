@@ -539,7 +539,7 @@ function getInstructionsHTML(paradigm, isFullPage) {
                     <li><p>If none of the candidate review comments is appropriate, click <img src="icons/reject_all.png" alt="Reject" class="btn-icon"> to proceed to the next judgment.</p></li>
                 </ul></li>
             </ul>
-            <p>You may <strong>repeat steps A-C multiple rounds</strong> until you have covered the points you want to include.</p>
+            <p>You may <strong>repeat steps A-C multiple rounds</strong> until you have covered the points you want to include. Due to the current interface design, you can select only one candidate at a time. <strong>If multiple candidates meet your needs, please do multiple rounds of inference</strong>. In each new round, re-enter the same judgment and then select a different candidate. You can find your previously entered judgment and feedback in the History block.</p>
             <br>
             <${headingTag}>4. Output</${headingTag}>
             <p>Please output only the <strong>strengths</strong>, <strong>weaknesses</strong>, and <strong>comments/suggestions/typos</strong> (if there are any) sections. You <strong>do not need to write a paper summary or provide review scores</strong>. Please follow the current ARR review guidelines as a reference:</p>

@@ -1,3 +1,2 @@
-participant_id,task_1,task_1_paper
-p01a,collab,paper_1
-p02b,collab,paper_2
+email,participant_id,task_1,task_1_paper,paper_title,submission_id
+pinakidas2203@gmail.com,p01a,collab,paper_1,Language-Guided Temporal Token Pruning for Efﬁcient VideoLLM Processing,7431
