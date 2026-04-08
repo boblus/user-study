@@ -28,7 +28,7 @@ const API_CONFIGS: Record<string, { baseUrl: string; model: string }> = {
   },
   cerebras: {
     baseUrl: "https://api.cerebras.ai/v1",
-    model: "llama3.1-8b",
+    model: "gpt-oss-120b",
   },
 }
 
@@ -81,15 +81,15 @@ async function callLLM(systemPrompt: string, userPrompt: string, temperature: nu
   }
 
   if (API_VERSION === 'openai') {
-    requestBody.max_completion_tokens = 4096
+    requestBody.max_completion_tokens = 8192
     requestBody.reasoning_effort = 'medium'
   } else if (API_VERSION === 'cerebras') {
-    requestBody.max_completion_tokens = 500
+    requestBody.max_completion_tokens = 8192
     requestBody.seed = seed
     requestBody.logprobs = true
     requestBody.top_logprobs = 10
   } else {
-    requestBody.max_tokens = 500
+    requestBody.max_tokens = 8192
     requestBody.temperature = temperature
   }
 
@@ -145,6 +145,8 @@ Bad candidates are those that:
 - Do NOT produce candidates that only restate the judgment in different words.
 - Do NOT invent evidence that is not supported by the paper content or snippet.
 - The candidates MUST be clearly differentiated. They should explore different angles/aspects, emphasize different evidence, or use different reasoning.
+- The paper content is formatted with line numbers (e.g., "The academic publishing system is un-028der increasing pressure from the rapid growth of029submissions"). Be aware that line breaks may split a single word or phrase across two lines. Do not misinterpret such splits as separate words or phrases. Read across line boundaries to reconstruct the original text.
+- When citing evidence, always reference the corresponding line range (e.g., "lines 028-029").
 - Follow the provided review guidelines.
 
 **Output format**

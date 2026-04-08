@@ -201,12 +201,6 @@ function bindEventListeners() {
         });
     }
 
-    // Text snippet paste handler - clean up PDF formatting
-    const textSnippetInput = document.getElementById('text-snippet-input');
-    if (textSnippetInput) {
-        textSnippetInput.addEventListener('paste', handleTextSnippetPaste);
-    }
-
     // Questionnaire page
     document.getElementById('questionnaire-form').addEventListener('submit', handleQuestionnaireSubmit);
     document.getElementById('back-to-login-questionnaire').addEventListener('click', handleBackToLogin);
@@ -227,54 +221,6 @@ function handleBackToLogin() {
 
     // Navigate to login page
     navigateTo('/login');
-}
-
-/**
- * Handle paste event in text snippet input - clean up PDF formatting
- */
-function handleTextSnippetPaste(e) {
-    // Prevent default paste behavior
-    e.preventDefault();
-
-    // Get pasted text from clipboard
-    const pastedText = e.clipboardData.getData('text');
-
-    // Clean up the text
-    let cleanedText = pastedText;
-
-    // Step 1: Remove hyphen + optional space + exactly 3 digits (e.g., "simi- 158lar" -> "similar", "re-161stricting" -> "restricting")
-    // This handles the most common case of line breaks with hyphens
-    // (?!\d) ensures it's exactly 3 digits, not part of a longer number
-    cleanedText = cleanedText.replace(/- ?\d{3}(?!\d)/g, '');
-
-    // Step 2: Replace standalone 3-digit line numbers with a space (e.g., "reward 159learning" -> "reward learning")
-    // Only match exactly 3 consecutive digits that are NOT part of a longer number
-    // (?<!\d) ensures no digit before, (?!\d) ensures no digit after
-    cleanedText = cleanedText.replace(/(?<!\d)\d{3}(?!\d)/g, ' ');
-
-    // Step 3: Handle line numbers mixed with years in citations (e.g., ", 1572023)" -> ", 2023)")
-    // Pattern: comma + optional space + digits + 4-digit year + closing parenthesis
-    // Keep only the last 4 digits (the year)
-    cleanedText = cleanedText.replace(/,\s?(\d+)(\d{4})(\))/g, ', $2$3');
-
-    // Step 4: Clean up multiple spaces and newlines
-    cleanedText = cleanedText.replace(/\s+/g, ' ');
-
-    // Step 5: Trim leading/trailing whitespace
-    cleanedText = cleanedText.trim();
-
-    // Insert cleaned text at cursor position
-    const target = e.target;
-    const start = target.selectionStart;
-    const end = target.selectionEnd;
-    const currentValue = target.value;
-
-    // Update the textarea value
-    target.value = currentValue.substring(0, start) + cleanedText + currentValue.substring(end);
-
-    // Set cursor position after inserted text
-    const newCursorPos = start + cleanedText.length;
-    target.setSelectionRange(newCursorPos, newCursorPos);
 }
 
 /**
@@ -524,7 +470,7 @@ function getInstructionsHTML(paradigm, isFullPage) {
                 <li><p><strong>Step A: Enter a judgment (one at a time)</strong></p>
                 <ul>
                     <li><p>In the Judgment expansion block, write one strength/weakness point you want to raise in the review (e.g., &ldquo;Clarity is a strength&rdquo;, &ldquo;The method is well-motivated&rdquo;, &ldquo;The experiments are insufficient&rdquo;).</p></li>
-                    <li><p>If your judgment refers to a specific sentence/paragraph/section of the paper, you may paste it in the Text snippet block to provide context to the system.</p></li>
+                    <li><p>If your judgment refers to a specific sentence/paragraph/section of the paper, you may paste it in the Text snippet block to provide context to the system. The current interface only supports plain text input. If the relevant context is in a figure, please do not paste it there.</p></li>
                 </ul></li>
                 <li><p><strong>Step B: Generate candidates</strong></p>
                 <p>After typing in your judgment, click <img src="icons/up-arrow.png" alt="Generate" class="btn-icon"> or hit Enter to generate review comments. The system will generate multiple candidate review comments. Since the system sends a real-time request, it may take a few seconds to respond.</p></li>
@@ -3084,29 +3030,33 @@ function renderQuestionnaire() {
     const task = AppState.assignment.tasks[AppState.currentTaskIndex - 1];
     const effortQuestion = document.getElementById('question-effort');
     const posteditEffortQuestion = document.getElementById('question-postedit-effort');
-    
+    const preferenceQuestion = document.getElementById('question-preference');
+
     if (task) {
         if (task.paradigm === 'scratch') {
             // Scratch: show only Effort
             effortQuestion.style.display = 'block';
             posteditEffortQuestion.style.display = 'none';
-            // Set required for effort, remove for postedit
+            preferenceQuestion.style.display = 'none';
             effortQuestion.querySelectorAll('input[type="radio"]').forEach(input => input.required = true);
             posteditEffortQuestion.querySelectorAll('input[type="radio"]').forEach(input => input.required = false);
+            preferenceQuestion.querySelectorAll('input[type="radio"]').forEach(input => input.required = false);
         } else if (task.paradigm === 'e2e') {
             // E2E: show only Post-edit effort
             effortQuestion.style.display = 'none';
             posteditEffortQuestion.style.display = 'block';
-            // Set required for postedit, remove for effort
+            preferenceQuestion.style.display = 'none';
             effortQuestion.querySelectorAll('input[type="radio"]').forEach(input => input.required = false);
             posteditEffortQuestion.querySelectorAll('input[type="radio"]').forEach(input => input.required = true);
+            preferenceQuestion.querySelectorAll('input[type="radio"]').forEach(input => input.required = false);
         } else if (task.paradigm === 'collab') {
-            // Collab: show both Effort and Post-edit effort
+            // Collab: show Effort, Post-edit effort, and Preference
             effortQuestion.style.display = 'block';
             posteditEffortQuestion.style.display = 'block';
-            // Both required
+            preferenceQuestion.style.display = 'block';
             effortQuestion.querySelectorAll('input[type="radio"]').forEach(input => input.required = true);
             posteditEffortQuestion.querySelectorAll('input[type="radio"]').forEach(input => input.required = true);
+            preferenceQuestion.querySelectorAll('input[type="radio"]').forEach(input => input.required = true);
         }
     }
 }
@@ -3122,7 +3072,8 @@ async function handleQuestionnaireSubmit(e) {
         effort: formData.get('effort') ? parseInt(formData.get('effort')) : null,
         postedit_effort: formData.get('postedit_effort') ? parseInt(formData.get('postedit_effort')) : null,
         confidence: parseInt(formData.get('confidence')),
-        satisfaction: parseInt(formData.get('satisfaction'))
+        satisfaction: parseInt(formData.get('satisfaction')),
+        preference: formData.get('preference') ? parseInt(formData.get('preference')) : null
     };
 
     const taskIndex = AppState.currentTaskIndex;
