@@ -476,7 +476,7 @@ function getInstructionsHTML(paradigm, isFullPage) {
                 <p>After typing in your judgment, click <img src="icons/up-arrow.png" alt="Generate" class="btn-icon"> or hit Enter to generate review comments. The system will generate multiple candidate review comments. Since the system sends a real-time request, it may take a few seconds to respond.</p></li>
                 <li><p><strong>Step C: Select, Accept, Refine or Reject</strong></p>
                 <ul>
-                    <li><p>Select the candidate review comment that you find appropriate.</p></li>
+                    <li><p>Select the candidate review comment that you find appropriate. An appropriate candidate should capture your intended judgment and expand it with reasonable evidence and reasoning.</p></li>
                     <ul>
                         <li><p>If the selected comment is satisfactory, click <img src="icons/accept.png" alt="Accept" class="btn-icon"> and move on to the next judgment.</p></li>
                         <li><p>If the selected comment is not satisfactory, click <img src="icons/refine.png" alt="Refine" class="btn-icon"> to provide feedback and let the system generate new review comments based on your feedback.</p></li>
