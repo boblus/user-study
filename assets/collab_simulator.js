@@ -151,8 +151,8 @@ class CollabSimulator {
             if (!data.candidates || !Array.isArray(data.candidates)) {
                 throw new Error('Response missing candidates array');
             }
-            // 返回格式：[{text: "...", temperature: 0.7, uncertainty?, u4_mc_nse?, angle?}, ...]
-            // 转换为前端期望的格式，透传 uncertainty 相关字段
+            // 返回格式：[{text: "...", temperature: 0.7, uncertainty?, u4_mc_nse?, angle?, comment_logprobs?}, ...]
+            // 转换为前端期望的格式，透传 uncertainty 及 logprobs 相关字段
             return data.candidates.map(c => ({
                 output: c.text,
                 temperature: c.temperature,
@@ -160,6 +160,7 @@ class CollabSimulator {
                 u1_u3_agg: c.u1_u3_agg !== undefined ? c.u1_u3_agg : null,
                 u4_mc_nse: c.u4_mc_nse !== undefined ? c.u4_mc_nse : null,
                 angle: c.angle || null,
+                comment_logprobs: c.comment_logprobs || null,
             }));
         } catch (error) {
             console.error('Edge Function 调用失败:', error);
