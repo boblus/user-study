@@ -9,5 +9,11 @@ wang,p05f,collab,paper_7,LexKeyPlan: Planning with Keyphrases and Retrieval Augm
 wang,p05g,collab,paper_8,Towards Geo-Culturally Grounded LLM Generations,2408
 se,p06h,collab,paper_9,A Little Human Data Goes A Long Way,619
 se,p06i,collab,paper_10,Learning Auxiliary Tasks Improves Reference-Free Hallucination Detection in Open-Domain Long-Form Generation,5992
+bo,p08l,collab,paper_13,LLMs instead of Human Judges? A Large Scale Empirical Study across 20 NLP Evaluation Tasks,444
+bo,p08m,collab,paper_14,Revisiting Uncertainty Quantification Evaluation in Language Models: Spurious Interactions with Response Length Bias Results,7845
+bo,p08n,collab,paper_15,Can Large Language Models Accurately Generate Answer Keys for Health-related Questions?,5329
 b,test1,collab,paper_9,-,-
 b,test2,collab,paper_10,-,-
+b,test3,collab,paper_13,-,-
+b,test4,collab,paper_14,-,-
+b,test5,collab,paper_15,-,-
