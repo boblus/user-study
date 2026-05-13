@@ -7,5 +7,7 @@ yu,p03g,collab,paper_6,Improbable Bigrams Expose Vulnerabilities of Incomplete T
 wang,p05e,collab,paper_5,Dynamic Jointly Batch Selection for Data Efficient Machine Translation Fine-Tuning,7215
 wang,p05f,collab,paper_7,LexKeyPlan: Planning with Keyphrases and Retrieval Augmentation for Legal Text Generation: A Case Study on European Court of Human Rights Cases,3107
 wang,p05g,collab,paper_8,Towards Geo-Culturally Grounded LLM Generations,2408
-b,test1,collab,paper_7,-,-
-b,test2,collab,paper_8,-,-
+se,p06h,collab,paper_9,A Little Human Data Goes A Long Way,619
+se,p06i,collab,paper_10,Learning Auxiliary Tasks Improves Reference-Free Hallucination Detection in Open-Domain Long-Form Generation,5992
+b,test1,collab,paper_9,-,-
+b,test2,collab,paper_10,-,-
