@@ -40,9 +40,7 @@ async function initApp() {
                 const taskStatus = backend.getTaskStatus(state, state.currentTaskIndex);
                 if (taskStatus === 'QUESTIONNAIRE_DONE') {
                     // Check if all tasks are completed
-                    const allDone = [1, 2, 3].every(idx => 
-                        backend.getTaskStatus(state, idx) === 'QUESTIONNAIRE_DONE'
-                    );
+                    const allDone = allTasksDone(state);
                     if (allDone) {
                         navigateTo('/complete');
                     } else {
@@ -238,7 +236,13 @@ function resetAppState() {
         clearInterval(AppState.timerInterval);
         AppState.timerInterval = null;
     }
-    
+
+    // Clear any pending autosave debounce from editor input
+    if (window.autosaveTimeout) {
+        clearTimeout(window.autosaveTimeout);
+        window.autosaveTimeout = null;
+    }
+
     // Reset all state
     AppState.currentToken = null;
     AppState.assignment = null;
@@ -349,6 +353,13 @@ function renderLogin() {
 async function renderOverview() {
     const state = AppState.currentState;
     const assignment = AppState.assignment;
+
+    // Session not loaded yet (e.g. direct navigation / page refresh while
+    // initApp is still restoring the session) - avoid crashing on null state
+    if (!assignment || !state) {
+        return;
+    }
+
     const tasksList = document.getElementById('tasks-list');
     tasksList.innerHTML = '';
 
@@ -410,6 +421,43 @@ function getParadigmName(paradigm) {
         'collab': 'Collaborative'
     };
     return names[paradigm] || paradigm;
+}
+
+/**
+ * Get the task object for a given task index.
+ * Task indices come from the CSV (task_1..task_10) and may not be contiguous,
+ * so look the task up by its index instead of assuming tasks[taskIndex - 1].
+ */
+function getTaskByIndex(taskIndex) {
+    const tasks = (AppState.assignment && AppState.assignment.tasks) || [];
+    return tasks.find(t => t.index === taskIndex) || null;
+}
+
+/**
+ * Check whether every assigned task has finished its questionnaire.
+ * (Previously hardcoded to tasks [1, 2, 3], which breaks for participants
+ * with a different number of tasks.)
+ */
+function allTasksDone(state) {
+    const tasks = (AppState.assignment && AppState.assignment.tasks) || [];
+    return tasks.length > 0 &&
+        tasks.every(t => backend.getTaskStatus(state, t.index) === 'QUESTIONNAIRE_DONE');
+}
+
+/**
+ * Remove heavy logprob data from candidates before storing them in task state.
+ * comment_logprobs is never used by the UI, but stored in collabRounds it gets
+ * re-transmitted on every state save/load (autosave runs every 15s), which is
+ * what made the interface increasingly slow. The full candidates (including
+ * logprobs) are preserved once per generation in the 'generate' event instead.
+ */
+function stripCandidateLogprobs(candidates) {
+    if (!Array.isArray(candidates)) return candidates;
+    return candidates.map(c => {
+        if (!c || typeof c !== 'object' || !('comment_logprobs' in c)) return c;
+        const { comment_logprobs, ...rest } = c;
+        return rest;
+    });
 }
 
 /**
@@ -539,7 +587,7 @@ async function renderInstructions() {
         return;
     }
 
-    const task = AppState.assignment.tasks[AppState.currentTaskIndex - 1];
+    const task = getTaskByIndex(AppState.currentTaskIndex);
     const state = AppState.currentState;
     const taskState = state.tasks[AppState.currentTaskIndex] || {};
 
@@ -564,7 +612,7 @@ async function renderInstructions() {
  */
 async function handleStartTask() {
     const taskIndex = AppState.currentTaskIndex;
-    const task = AppState.assignment.tasks[taskIndex - 1];
+    const task = getTaskByIndex(taskIndex);
     const timestamp = new Date().toISOString();
 
     // Save task start state
@@ -599,7 +647,7 @@ async function renderTask() {
         return;
     }
 
-    const task = AppState.assignment.tasks[AppState.currentTaskIndex - 1];
+    const task = getTaskByIndex(AppState.currentTaskIndex);
     const state = AppState.currentState;
     const taskState = state.tasks[AppState.currentTaskIndex] || {};
 
@@ -930,7 +978,7 @@ async function renderTask() {
  */
 async function handleStartWriting() {
     const taskIndex = AppState.currentTaskIndex;
-    const task = AppState.assignment.tasks[taskIndex - 1];
+    const task = getTaskByIndex(taskIndex);
     const timestamp = new Date().toISOString();
 
     await backend.saveState(AppState.currentToken, taskIndex, {
@@ -982,7 +1030,7 @@ async function handleStartWriting() {
  */
 async function handleStartWritingE2E() {
     const taskIndex = AppState.currentTaskIndex;
-    const task = AppState.assignment.tasks[taskIndex - 1];
+    const task = getTaskByIndex(taskIndex);
     
     // Get the key-point sketch
     const sketchTextarea = document.getElementById('key-point-sketch');
@@ -1103,7 +1151,9 @@ function renderCandidates(candidates) {
                 const u = candidate.uncertainty;
                 const u13 = ((u.u1_avg_nll || 0) + (u.u2_mean_entropy || 0) + (u.u3_msp || 0)) / 3;
                 div.querySelector('.u13-value').textContent = u13.toFixed(3);
-                div.querySelector('.u4-value').textContent = (candidate.u4_mc_nse !== null ? candidate.u4_mc_nse.toFixed(3) : '—');
+                div.querySelector('.u4-value').textContent =
+                    (candidate.u4_mc_nse !== null && candidate.u4_mc_nse !== undefined)
+                        ? candidate.u4_mc_nse.toFixed(3) : '—';
                 uncertaintyEl.style.display = 'flex';
             }
             container.appendChild(div);
@@ -1132,7 +1182,7 @@ function renderCandidates(candidates) {
  */
 async function handleGenerate() {
     const taskIndex = AppState.currentTaskIndex;
-    const task = AppState.assignment.tasks[taskIndex - 1];
+    const task = getTaskByIndex(taskIndex);
     
     // Get fresh state to ensure we have the latest rounds
     const state = await backend.getCurrentState(AppState.currentToken);
@@ -1172,13 +1222,15 @@ async function handleGenerate() {
         // Only pass rounds from the current judgment (not history from previous judgments)
         const currentJudgmentRounds = rounds.filter(r => r.judgmentNum === currentJudgmentNum);
 
-        // For 'rejected' rounds, output is null (only set on accept), so fill it with the selected candidate's text
+        // For 'rejected' rounds, output is null (only set on accept), so fill it with the selected candidate's text.
+        // Also strip heavy logprob data (legacy rounds may still carry it) before sending to the LLM.
         const enrichedJudgmentRounds = currentJudgmentRounds.map(round => {
-            if (round.output !== null && round.output !== undefined) return round;
-            if (round.candidates && round.selectedCandidateIndex !== null && round.selectedCandidateIndex !== undefined) {
-                return { ...round, output: round.candidates[round.selectedCandidateIndex]?.output || null };
+            const slimRound = { ...round, candidates: stripCandidateLogprobs(round.candidates) };
+            if (slimRound.output !== null && slimRound.output !== undefined) return slimRound;
+            if (slimRound.candidates && slimRound.selectedCandidateIndex !== null && slimRound.selectedCandidateIndex !== undefined) {
+                return { ...slimRound, output: slimRound.candidates[slimRound.selectedCandidateIndex]?.output || null };
             }
-            return round;
+            return slimRound;
         });
 
         const candidates = await CollabSimulator.generateMultipleCandidates(
@@ -1198,13 +1250,17 @@ async function handleGenerate() {
             });
         }
 
+        // Store only slim candidates (without logprobs) in the repeatedly-saved state;
+        // the full candidates are logged once in the 'generate' event below
+        const slimCandidates = stripCandidateLogprobs(candidates);
+
         // Add new round with multiple candidates
         const newRound = {
             roundId: rounds.length + 1,
             judgmentNum: currentJudgmentNum,
             judgment: judgment,
             textSnippet: textSnippet,
-            candidates: candidates,  // Array of {output, temperature}
+            candidates: slimCandidates,  // Array of {output, temperature, ...}
             output: null,  // Will be set when user accepts a candidate
             selectedCandidateIndex: null,
             status: 'pending',
@@ -1216,7 +1272,29 @@ async function handleGenerate() {
             collabRounds: updatedRounds,
             judgment: judgment
         });
-        
+
+        // Log the full generation once (candidates incl. logprobs + uncertainty
+        // sampling details). Fire-and-forget: the payload can be large and must
+        // not block the UI; appendEvent handles its own errors.
+        backend.appendEvent({
+            participant_token: AppState.currentToken,
+            participant_id: AppState.assignment.participantId,
+            task_index: taskIndex,
+            paper_id: task.paperId,
+            paradigm: task.paradigm,
+            round_id: newRound.roundId,
+            event_type: 'generate',
+            payload: {
+                judgmentNum: currentJudgmentNum,
+                judgment: judgment,
+                textSnippet: textSnippet,
+                feedback: feedback,
+                candidates: candidates,
+                generation_extras: (typeof CollabSimulator !== 'undefined' && CollabSimulator.lastGenerationExtras) || null
+            },
+            timestamp: newRound.timestamp
+        });
+
         // Disable generate button and lock inputs while candidates are shown
         if (generateBtn) generateBtn.disabled = true;
         const judgmentInputLock = document.getElementById('judgment-input');
@@ -1234,7 +1312,7 @@ async function handleGenerate() {
             if (selectionStage) selectionStage.style.display = 'block';
             if (confirmStage) confirmStage.style.display = 'none';
 
-            renderCandidates(candidates);
+            renderCandidates(slimCandidates);
             generatedArea.style.display = 'block';
         }
         
@@ -1265,7 +1343,7 @@ async function handleGenerate() {
  */
 async function handleSelectCandidate(candidateIndex) {
     const taskIndex = AppState.currentTaskIndex;
-    const task = AppState.assignment.tasks[taskIndex - 1];
+    const task = getTaskByIndex(taskIndex);
     
     // Get fresh state
     const state = await backend.getCurrentState(AppState.currentToken);
@@ -1348,7 +1426,7 @@ async function handleSelectCandidate(candidateIndex) {
  */
 async function handleAcceptSelected() {
     const taskIndex = AppState.currentTaskIndex;
-    const task = AppState.assignment.tasks[taskIndex - 1];
+    const task = getTaskByIndex(taskIndex);
     
     // Get the edited text from the selected textarea
     const selectedTextarea = document.getElementById('selected-candidate-text');
@@ -1465,7 +1543,7 @@ async function handleAcceptSelected() {
  */
 async function handleRejectAllCandidates() {
     const taskIndex = AppState.currentTaskIndex;
-    const task = AppState.assignment.tasks[taskIndex - 1];
+    const task = getTaskByIndex(taskIndex);
 
     // Get fresh state
     const state = await backend.getCurrentState(AppState.currentToken);
@@ -1539,7 +1617,7 @@ async function handleRejectAllCandidates() {
  */
 async function handleRefineSelected() {
     const taskIndex = AppState.currentTaskIndex;
-    const task = AppState.assignment.tasks[taskIndex - 1];
+    const task = getTaskByIndex(taskIndex);
 
     // Get fresh state
     const state = await backend.getCurrentState(AppState.currentToken);
@@ -1604,7 +1682,7 @@ async function handleRefineSelected() {
  */
 async function handleBackToCandidates() {
     const taskIndex = AppState.currentTaskIndex;
-    const task = AppState.assignment.tasks[taskIndex - 1];
+    const task = getTaskByIndex(taskIndex);
 
     // Get fresh state
     const state = await backend.getCurrentState(AppState.currentToken);
@@ -1653,7 +1731,7 @@ async function handleBackToCandidates() {
  */
 async function handleRegenerate() {
     const taskIndex = AppState.currentTaskIndex;
-    const task = AppState.assignment.tasks[taskIndex - 1];
+    const task = getTaskByIndex(taskIndex);
     
     // Get fresh state
     const state = await backend.getCurrentState(AppState.currentToken);
@@ -2124,30 +2202,40 @@ async function handleDynamicGenerate(feedbackId) {
     const taskState = state.tasks[taskIndex] || {};
     const rounds = [...(taskState.collabRounds || [])];
     
-    // Update the last rejected round with feedback
+    // Update the last rejected round with feedback and persist it immediately,
+    // so the feedback log is not lost if generation fails or the page is closed
     if (rounds.length > 0) {
         const lastRound = rounds[rounds.length - 1];
         if (lastRound.status === 'rejected') {
             lastRound.feedback = feedback;
+            try {
+                await backend.saveState(AppState.currentToken, taskIndex, {
+                    collabRounds: rounds
+                });
+            } catch (e) {
+                console.error('Failed to save feedback:', e);
+            }
         }
     }
-    
+
     // Get judgment from input field
     const judgmentInput = document.getElementById('judgment-input');
     const judgment = judgmentInput ? judgmentInput.value.trim() : '';
-    
+
     // Only pass rounds from the current judgment
     const completedCount = rounds.filter(r => r.status === 'accepted' || r.status === 'rejected_all').length;
     const currentJudgmentNum = completedCount + 1;
     const currentJudgmentRounds = rounds.filter(r => r.judgmentNum === currentJudgmentNum);
 
-    // For 'rejected' rounds, output is null (only set on accept), so fill it with the selected candidate's text
+    // For 'rejected' rounds, output is null (only set on accept), so fill it with the selected candidate's text.
+    // Also strip heavy logprob data (legacy rounds may still carry it) before sending to the LLM.
     const enrichedJudgmentRounds = currentJudgmentRounds.map(round => {
-        if (round.output !== null && round.output !== undefined) return round;
-        if (round.candidates && round.selectedCandidateIndex !== null && round.selectedCandidateIndex !== undefined) {
-            return { ...round, output: round.candidates[round.selectedCandidateIndex]?.output || null };
+        const slimRound = { ...round, candidates: stripCandidateLogprobs(round.candidates) };
+        if (slimRound.output !== null && slimRound.output !== undefined) return slimRound;
+        if (slimRound.candidates && slimRound.selectedCandidateIndex !== null && slimRound.selectedCandidateIndex !== undefined) {
+            return { ...slimRound, output: slimRound.candidates[slimRound.selectedCandidateIndex]?.output || null };
         }
-        return round;
+        return slimRound;
     });
 
     try {
@@ -2167,13 +2255,17 @@ async function handleDynamicGenerate(feedbackId) {
             });
         }
 
+        // Store only slim candidates (without logprobs) in the repeatedly-saved state;
+        // the full candidates are logged once in the 'generate' event below
+        const slimCandidates = stripCandidateLogprobs(candidates);
+
         // Add new round with multiple candidates
         const newRound = {
             roundId: rounds.length + 1,
-            judgmentNum: completedCount + 1,
+            judgmentNum: currentJudgmentNum,
             judgment: judgment,
             feedback: feedback,
-            candidates: candidates,
+            candidates: slimCandidates,
             output: null,
             selectedCandidateIndex: null,
             status: 'pending',
@@ -2186,12 +2278,33 @@ async function handleDynamicGenerate(feedbackId) {
             judgment: judgment
         });
 
+        // Log the full generation once (candidates incl. logprobs + uncertainty
+        // sampling details). Fire-and-forget: the payload can be large and must
+        // not block the UI; appendEvent handles its own errors.
+        backend.appendEvent({
+            participant_token: AppState.currentToken,
+            participant_id: AppState.assignment.participantId,
+            task_index: taskIndex,
+            paper_id: task.paperId,
+            paradigm: task.paradigm,
+            round_id: newRound.roundId,
+            event_type: 'generate',
+            payload: {
+                judgmentNum: currentJudgmentNum,
+                judgment: judgment,
+                feedback: feedback,
+                candidates: candidates,
+                generation_extras: (typeof CollabSimulator !== 'undefined' && CollabSimulator.lastGenerationExtras) || null
+            },
+            timestamp: newRound.timestamp
+        });
+
         // Hide Generate/Stop buttons in feedback area
         if (generateBtn) generateBtn.style.display = 'none';
         if (stopBtn) stopBtn.style.display = 'none';
 
         // Create new expansion area showing all candidates
-        createExpansionArea(feedbackArea, candidates);
+        createExpansionArea(feedbackArea, slimCandidates);
 
         AppState.currentState = await backend.getCurrentState(AppState.currentToken);
     } catch (error) {
@@ -2285,20 +2398,101 @@ function createExpansionArea(feedbackArea, candidates) {
 
     if (acceptBtn) acceptBtn.addEventListener('click', () => handleDynamicAccept(expansionId));
     if (refineBtn) refineBtn.addEventListener('click', () => handleDynamicRefine(expansionId));
-    if (rejectBtn2) rejectBtn2.addEventListener('click', () => {
-        const stage1 = expansionArea.querySelector('.new-expansion-stage1');
-        const stage2 = expansionArea.querySelector('.new-expansion-stage2');
-        if (stage1) stage1.style.display = '';
-        if (stage2) stage2.style.display = 'none';
+    if (rejectBtn2) rejectBtn2.addEventListener('click', () => handleExpansionBackToCandidates(expansionId));
+}
+
+/**
+ * Handle Back in a new expansion area (stage 2 → stage 1):
+ * clear the recorded selection and log the event, mirroring handleBackToCandidates
+ */
+async function handleExpansionBackToCandidates(expansionId) {
+    const expansionArea = document.getElementById(expansionId);
+    if (!expansionArea) return;
+
+    const taskIndex = AppState.currentTaskIndex;
+    const task = AppState.assignment.tasks.find(t => t.index === taskIndex);
+
+    const state = await backend.getCurrentState(AppState.currentToken);
+    AppState.currentState = state;
+    const taskState = state.tasks[taskIndex] || {};
+    const rounds = [...(taskState.collabRounds || [])];
+
+    const pendingRound = rounds.find(r => r.status === 'pending');
+    if (pendingRound) {
+        pendingRound.selectedCandidateIndex = null;
+        await backend.saveState(AppState.currentToken, taskIndex, {
+            collabRounds: rounds
+        });
+    }
+
+    await backend.appendEvent({
+        participant_token: AppState.currentToken,
+        participant_id: AppState.assignment.participantId,
+        task_index: taskIndex,
+        paper_id: task?.paperId,
+        paradigm: task?.paradigm,
+        round_id: pendingRound?.roundId,
+        event_type: 'back_to_candidates',
+        payload: {},
+        timestamp: new Date().toISOString()
     });
+
+    delete expansionArea.dataset.selectedIndex;
+    const stage1 = expansionArea.querySelector('.new-expansion-stage1');
+    const stage2 = expansionArea.querySelector('.new-expansion-stage2');
+    if (stage1) stage1.style.display = '';
+    if (stage2) stage2.style.display = 'none';
 }
 
 /**
  * Handle candidate selection within a new expansion area (stage 1 → stage 2)
+ *
+ * IMPORTANT: this must persist selectedCandidateIndex and log a
+ * select_candidate event, mirroring handleSelectCandidate in the first-round
+ * flow. Previously it only updated the UI, so refined rounds never recorded
+ * which candidate was chosen (missing logs), and on the next refinement the
+ * Edge Function received output=null as the candidate to refine.
  */
-function handleExpansionSelectCandidate(expansionId, candidateIndex, candidates) {
+async function handleExpansionSelectCandidate(expansionId, candidateIndex, candidates) {
     const expansionArea = document.getElementById(expansionId);
     if (!expansionArea) return;
+
+    const taskIndex = AppState.currentTaskIndex;
+    const task = AppState.assignment.tasks.find(t => t.index === taskIndex);
+
+    // Get fresh state and persist the selection on the pending round
+    const state = await backend.getCurrentState(AppState.currentToken);
+    AppState.currentState = state;
+    const taskState = state.tasks[taskIndex] || {};
+    const rounds = [...(taskState.collabRounds || [])];
+
+    let pendingRound = rounds.find(r => r.status === 'pending');
+    // Fallback: if state fetch failed or status changed, try last round with candidates
+    if (!pendingRound && rounds.length > 0) {
+        const lastRound = rounds[rounds.length - 1];
+        if (lastRound.candidates && lastRound.candidates.length > 0) {
+            pendingRound = lastRound;
+        }
+    }
+
+    if (pendingRound) {
+        pendingRound.selectedCandidateIndex = candidateIndex;
+        await backend.saveState(AppState.currentToken, taskIndex, {
+            collabRounds: rounds
+        });
+    }
+
+    await backend.appendEvent({
+        participant_token: AppState.currentToken,
+        participant_id: AppState.assignment.participantId,
+        task_index: taskIndex,
+        paper_id: task?.paperId,
+        paradigm: task?.paradigm,
+        round_id: pendingRound?.roundId,
+        event_type: 'select_candidate',
+        payload: { selectedCandidateIndex: candidateIndex },
+        timestamp: new Date().toISOString()
+    });
 
     const stage1 = expansionArea.querySelector('.new-expansion-stage1');
     const stage2 = expansionArea.querySelector('.new-expansion-stage2');
@@ -2314,6 +2508,8 @@ function handleExpansionSelectCandidate(expansionId, candidateIndex, candidates)
 
     if (stage1) stage1.style.display = 'none';
     if (stage2) stage2.style.display = 'block';
+
+    AppState.currentState = await backend.getCurrentState(AppState.currentToken);
 }
 
 /**
@@ -2338,6 +2534,9 @@ async function handleDynamicRefine(expansionId) {
 
     await backend.saveState(AppState.currentToken, taskIndex, { collabRounds: rounds });
 
+    // Log as 'refine' (the same event type as the first-round refine flow).
+    // This was previously logged as 'reject', which made refine actions
+    // invisible in the event log.
     await backend.appendEvent({
         participant_token: AppState.currentToken,
         participant_id: AppState.assignment.participantId,
@@ -2345,7 +2544,8 @@ async function handleDynamicRefine(expansionId) {
         paper_id: task.paperId,
         paradigm: task.paradigm,
         round_id: pendingRound?.roundId,
-        event_type: 'reject',
+        event_type: 'refine',
+        payload: { selectedCandidateIndex: pendingRound?.selectedCandidateIndex ?? null },
         timestamp: new Date().toISOString()
     });
 
@@ -2504,6 +2704,7 @@ async function handleDynamicAccept(expansionId) {
         paradigm: task.paradigm,
         round_id: pendingRound?.roundId,
         event_type: 'accept',
+        payload: { selectedCandidateIndex: pendingRound?.selectedCandidateIndex ?? null },
         timestamp: new Date().toISOString()
     });
 
@@ -2639,10 +2840,11 @@ async function handleDynamicStop(feedbackId) {
     // Show judgment input area
     const collabInputArea = document.getElementById('collab-input-area');
     if (collabInputArea) collabInputArea.style.display = 'block';
-    
+
     // Clear judgment input
+    const judgmentInput = document.getElementById('judgment-input');
     if (judgmentInput) judgmentInput.value = '';
-    
+
     const textSnippetInput = document.getElementById('text-snippet-input');
     if (textSnippetInput) textSnippetInput.value = '';
     
@@ -2700,7 +2902,7 @@ function renderCollabRounds(rounds) {
  */
 async function handleAcceptRound(roundId) {
     const taskIndex = AppState.currentTaskIndex;
-    const task = AppState.assignment.tasks[taskIndex - 1];
+    const task = getTaskByIndex(taskIndex);
     
     // Get fresh state
     const state = await backend.getCurrentState(AppState.currentToken);
@@ -2767,7 +2969,7 @@ async function handleAcceptRound(roundId) {
  */
 async function handleRejectRound(roundId) {
     const taskIndex = AppState.currentTaskIndex;
-    const task = AppState.assignment.tasks[taskIndex - 1];
+    const task = getTaskByIndex(taskIndex);
     
     // Get fresh state
     const state = await backend.getCurrentState(AppState.currentToken);
@@ -2849,7 +3051,7 @@ async function autosaveDraft() {
 
     const editor = document.getElementById('review-editor');
     const taskIndex = AppState.currentTaskIndex;
-    const task = AppState.assignment.tasks[taskIndex - 1];
+    const task = getTaskByIndex(taskIndex);
 
     const draftText = editor.value;
 
@@ -2883,7 +3085,7 @@ async function handlePauseWriting() {
     if (!AppState.currentTaskIndex) return;
 
     const taskIndex = AppState.currentTaskIndex;
-    const task = AppState.assignment.tasks[taskIndex - 1];
+    const task = getTaskByIndex(taskIndex);
     const state = AppState.currentState;
     const taskState = state.tasks[taskIndex] || {};
     const timestamp = new Date().toISOString();
@@ -2924,7 +3126,7 @@ async function handleResumeWriting() {
     if (!AppState.currentTaskIndex) return;
 
     const taskIndex = AppState.currentTaskIndex;
-    const task = AppState.assignment.tasks[taskIndex - 1];
+    const task = getTaskByIndex(taskIndex);
     const state = AppState.currentState;
     const taskState = state.tasks[taskIndex] || {};
     const timestamp = new Date().toISOString();
@@ -2975,15 +3177,19 @@ async function handleSubmitReview() {
     }
 
     const taskIndex = AppState.currentTaskIndex;
-    const task = AppState.assignment.tasks[taskIndex - 1];
+    const task = getTaskByIndex(taskIndex);
     const state = AppState.currentState;
     const taskState = state.tasks[taskIndex] || {};
     const timestamp = new Date().toISOString();
 
-    // Stop autosave
+    // Stop autosave (both the interval and any pending input debounce)
     if (AppState.autosaveInterval) {
         clearInterval(AppState.autosaveInterval);
         AppState.autosaveInterval = null;
+    }
+    if (window.autosaveTimeout) {
+        clearTimeout(window.autosaveTimeout);
+        window.autosaveTimeout = null;
     }
 
     try {
@@ -3027,7 +3233,7 @@ function renderQuestionnaire() {
     document.getElementById('questionnaire-form').reset();
 
     // Show/hide questions based on paradigm
-    const task = AppState.assignment.tasks[AppState.currentTaskIndex - 1];
+    const task = getTaskByIndex(AppState.currentTaskIndex);
     const effortQuestion = document.getElementById('question-effort');
     const posteditEffortQuestion = document.getElementById('question-postedit-effort');
     const preferenceQuestion = document.getElementById('question-preference');
@@ -3077,7 +3283,7 @@ async function handleQuestionnaireSubmit(e) {
     };
 
     const taskIndex = AppState.currentTaskIndex;
-    const task = AppState.assignment.tasks[taskIndex - 1];
+    const task = getTaskByIndex(taskIndex);
     const timestamp = new Date().toISOString();
 
     try {
@@ -3097,9 +3303,7 @@ async function handleQuestionnaireSubmit(e) {
         AppState.currentState = await backend.getCurrentState(AppState.currentToken);
 
         // Check if all tasks are completed
-        const allDone = [1, 2, 3].every(idx => 
-            backend.getTaskStatus(AppState.currentState, idx) === 'QUESTIONNAIRE_DONE'
-        );
+        const allDone = allTasksDone(AppState.currentState);
 
         if (allDone) {
             navigateTo('/complete');

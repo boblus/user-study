@@ -10,6 +10,9 @@
 
 class CollabSimulator {
     static papersData = null;
+    // 最近一次生成返回的附加数据（如 uncertainty 模式的 angles_detail），
+    // 供 app.js 在 'generate' 事件中一次性记录
+    static lastGenerationExtras = null;
 
     /**
      * 加载本地 papers.json
@@ -91,6 +94,9 @@ class CollabSimulator {
             return await this.callEdgeFunction(paperId, paperContent, previousRounds, judgment, feedback, textSnippet);
         }
 
+        // 本地模式：无附加研究数据
+        this.lastGenerationExtras = null;
+
         // 本地模式：并行调用生成多个 candidates
         const temps = temperatures || (typeof CONFIG !== 'undefined' && CONFIG.CANDIDATE_TEMPERATURES) || [0.3, 0.9];
         const promises = temps.map(async (temp) => {
@@ -111,8 +117,18 @@ class CollabSimulator {
 
         const url = CONFIG.EDGE_FUNCTION_URL;
         console.log('Calling Edge Function:', url);
-        console.log('Request payload:', { paperId, paperContentLength: paperContent?.length, previousRounds, judgment, feedback, textSnippet, temperature });
-        
+        // 注意：不要把 previousRounds / 完整响应打印到 console——
+        // 它们可能包含大量 logprobs 数据，长期驻留内存导致页面越用越卡
+        console.log('Request payload:', {
+            paperId,
+            paperContentLength: paperContent?.length,
+            previousRoundsCount: previousRounds?.length || 0,
+            judgment,
+            feedback,
+            textSnippet,
+            temperature
+        });
+
         try {
             const response = await fetch(url, {
                 method: 'POST',
@@ -132,10 +148,10 @@ class CollabSimulator {
             });
 
             console.log('Response status:', response.status);
-            
+
             const responseText = await response.text();
-            console.log('Response body:', responseText);
-            
+            console.log('Response body length:', responseText.length);
+
             if (!response.ok) {
                 let errorMsg = `HTTP error: ${response.status}`;
                 try {
@@ -151,11 +167,18 @@ class CollabSimulator {
             if (!data.candidates || !Array.isArray(data.candidates)) {
                 throw new Error('Response missing candidates array');
             }
+            // 保存本次生成的附加研究数据（uncertainty 模式下的 angles_detail，
+            // 含每个 angle 全部 samples 的 raw logprobs）。之前这部分数据被直接丢弃；
+            // 现在由 app.js 在 'generate' 事件中一次性记录，不进入反复保存的 state。
+            this.lastGenerationExtras = {
+                angles_detail: data.angles_detail !== undefined ? data.angles_detail : null
+            };
             // 返回格式：[{text: "...", temperature: 0.7, uncertainty?, u4_mc_nse?, angle?, comment_logprobs?}, ...]
             // 转换为前端期望的格式，透传 uncertainty 及 logprobs 相关字段
             return data.candidates.map(c => ({
                 output: c.text,
                 temperature: c.temperature,
+                seed: c.seed !== undefined ? c.seed : null,
                 uncertainty: c.uncertainty || null,
                 u1_u3_agg: c.u1_u3_agg !== undefined ? c.u1_u3_agg : null,
                 u4_mc_nse: c.u4_mc_nse !== undefined ? c.u4_mc_nse : null,

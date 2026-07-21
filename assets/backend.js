@@ -410,35 +410,53 @@ class SupabaseBackend extends DataBackend {
      */
     async saveState(token, taskIndex, state) {
         try {
-            // 检查是否已存在
+            // 检查是否已存在（只取一个极小的列，避免每次保存都下载整行数据，
+            // collab_rounds 会随任务进行越来越大）
             const query = `?participant_id=eq.${encodeURIComponent(token)}&task_index=eq.${taskIndex}`;
-            const existing = await this.supabaseRequest('task_state', 'GET', null, query);
-            
-            const data = {
-                participant_id: token,
-                task_index: taskIndex,
-                started: state.started ?? existing?.[0]?.started ?? false,
-                submitted: state.submitted ?? existing?.[0]?.submitted ?? false,
-                questionnaire_done: state.questionnaireDone ?? existing?.[0]?.questionnaire_done ?? false,
-                draft_text: state.draftText ?? existing?.[0]?.draft_text,
-                final_review: state.finalReview ?? existing?.[0]?.final_review,
-                collab_rounds: state.collabRounds ?? existing?.[0]?.collab_rounds ?? [],
-                judgment: state.judgment ?? existing?.[0]?.judgment,
-                key_point_sketch: state.keyPointSketch ?? existing?.[0]?.key_point_sketch,
-                task_start_timestamp: state.taskStartTimestamp ?? existing?.[0]?.task_start_timestamp,
-                writing_start_timestamp: state.writingStartTimestamp ?? existing?.[0]?.writing_start_timestamp,
-                submit_timestamp: state.submitTimestamp ?? existing?.[0]?.submit_timestamp,
-                pause_timestamps: state.pauseTimestamps ?? existing?.[0]?.pause_timestamps ?? [],
-                resume_timestamps: state.resumeTimestamps ?? existing?.[0]?.resume_timestamps ?? [],
-                last_saved: new Date().toISOString()
+            const existing = await this.supabaseRequest('task_state', 'GET', null, `${query}&select=participant_id`);
+
+            // 只更新调用方显式传入的字段（部分更新）。
+            // 之前的实现每次都把 GET 到的整行写回，既造成大量重复传输
+            // （尤其是 collab_rounds），又会在并发保存（如 autosave 与
+            // 生成/refine 同时进行）时把旧的 collab_rounds 覆盖回去导致丢数据。
+            const fieldMap = {
+                started: 'started',
+                submitted: 'submitted',
+                questionnaireDone: 'questionnaire_done',
+                draftText: 'draft_text',
+                finalReview: 'final_review',
+                collabRounds: 'collab_rounds',
+                judgment: 'judgment',
+                keyPointSketch: 'key_point_sketch',
+                taskStartTimestamp: 'task_start_timestamp',
+                writingStartTimestamp: 'writing_start_timestamp',
+                submitTimestamp: 'submit_timestamp',
+                pauseTimestamps: 'pause_timestamps',
+                resumeTimestamps: 'resume_timestamps'
             };
+            const data = { last_saved: new Date().toISOString() };
+            for (const [key, column] of Object.entries(fieldMap)) {
+                if (state[key] !== undefined) {
+                    data[column] = state[key];
+                }
+            }
 
             if (existing && existing.length > 0) {
-                // 更新
+                // 更新（只 PATCH 传入的字段）
                 await this.supabaseRequest('task_state', 'PATCH', data, query);
             } else {
-                // 插入
-                await this.supabaseRequest('task_state', 'POST', data);
+                // 插入（未传入的字段使用与旧实现一致的默认值）
+                await this.supabaseRequest('task_state', 'POST', {
+                    participant_id: token,
+                    task_index: taskIndex,
+                    started: false,
+                    submitted: false,
+                    questionnaire_done: false,
+                    collab_rounds: [],
+                    pause_timestamps: [],
+                    resume_timestamps: [],
+                    ...data
+                });
             }
         } catch (error) {
             console.error('保存状态失败:', error);
@@ -501,8 +519,8 @@ class SupabaseBackend extends DataBackend {
         try {
             // 检查是否已存在
             const query = `?participant_id=eq.${encodeURIComponent(token)}&task_index=eq.${taskIndex}`;
-            const existing = await this.supabaseRequest('questionnaire', 'GET', null, query);
-            
+            const existing = await this.supabaseRequest('questionnaire', 'GET', null, `${query}&select=participant_id`);
+
             const data = {
                 participant_id: token,
                 task_index: taskIndex,
@@ -510,13 +528,27 @@ class SupabaseBackend extends DataBackend {
                 postedit_effort: responses.postedit_effort,
                 confidence: responses.confidence,
                 satisfaction: responses.satisfaction,
+                preference: responses.preference,
                 timestamp: new Date().toISOString()
             };
 
-            if (existing && existing.length > 0) {
-                await this.supabaseRequest('questionnaire', 'PATCH', data, query);
-            } else {
-                await this.supabaseRequest('questionnaire', 'POST', data);
+            try {
+                if (existing && existing.length > 0) {
+                    await this.supabaseRequest('questionnaire', 'PATCH', data, query);
+                } else {
+                    await this.supabaseRequest('questionnaire', 'POST', data);
+                }
+            } catch (err) {
+                // 若 questionnaire 表没有 preference 列，去掉该字段重试，
+                // 保证问卷提交不被阻塞（preference 仍会记录在
+                // submit_post_task_questionnaire 事件的 payload 中）
+                console.warn('保存问卷失败，尝试去掉 preference 字段重试:', err);
+                const { preference, ...withoutPreference } = data;
+                if (existing && existing.length > 0) {
+                    await this.supabaseRequest('questionnaire', 'PATCH', withoutPreference, query);
+                } else {
+                    await this.supabaseRequest('questionnaire', 'POST', withoutPreference);
+                }
             }
 
             // 更新任务状态
