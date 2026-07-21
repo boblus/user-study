@@ -1,20 +1,14 @@
 email,participant_id,task_1,task_1_paper,paper_title,submission_id
-pi,p01a,collab,paper_1,Language-Guided Temporal Token Pruning for Efﬁcient VideoLLM Processing,7431
-sr,p02b,collab,paper_2,BRSpeech-DF: A Deep Fake Synthetic Speech Dataset for Portuguese Zero-Shot TTS,6788
-yu,p03c,collab,paper_3,From Benchmark to Better Embeddings: Leveraging Synonym Substitution to Enhance Multimodal Models in Ukrainian,3246
-yu,p04f,collab,paper_4,MetaFaith: Understanding and Improving Faithful Natural Language Uncertainty Expression in LLMs,3787
-yu,p03g,collab,paper_6,Improbable Bigrams Expose Vulnerabilities of Incomplete Tokens in Byte-Level Tokenizers,733
-wang,p05e,collab,paper_5,Dynamic Jointly Batch Selection for Data Efficient Machine Translation Fine-Tuning,7215
-wang,p05f,collab,paper_7,LexKeyPlan: Planning with Keyphrases and Retrieval Augmentation for Legal Text Generation: A Case Study on European Court of Human Rights Cases,3107
-wang,p05g,collab,paper_8,Towards Geo-Culturally Grounded LLM Generations,2408
-se,p06h,collab,paper_9,A Little Human Data Goes A Long Way,619
-se,p06i,collab,paper_10,Learning Auxiliary Tasks Improves Reference-Free Hallucination Detection in Open-Domain Long-Form Generation,5992
-fa,p07j,collab,paper_11,SynWorld: Virtual Scenario Synthesis for Agentic Action Knowledge Refinement,2246
-fa,p07k,collab,paper_12,MIRAGE: Exploring How Large Language Models Perform in Complex Social Interactive Environments,1060
-bo,p08l,collab,paper_13,LLMs instead of Human Judges? A Large Scale Empirical Study across 20 NLP Evaluation Tasks,444
-bo,p08m,collab,paper_14,Revisiting Uncertainty Quantification Evaluation in Language Models: Spurious Interactions with Response Length Bias Results,7845
-bo,p08n,collab,paper_15,Can Large Language Models Accurately Generate Answer Keys for Health-related Questions?,5329
-b,test1,collab,paper_9,-,-
-b,test2,collab,paper_10,-,-
-b,test3,collab,paper_11,-,-
-b,test4,collab,paper_12,-,-
+,se01,collab,paper_1,,3482
+,se02,collab,paper_2,,6444
+,se03,collab,paper_3,,2955
+,se04,collab,paper_4,,4557
+,se05,collab,paper_5,,5992
+,se06,collab,paper_6,,3456
+,fa01,collab,paper_7,,3107
+,fa02,collab,paper_8,,2158
+,fa03,collab,paper_9,,1268
+,fa04,collab,paper_10,,2242
+,fa05,collab,paper_11,,4193
+,fa06,collab,paper_12,,4459
+,test,collab,paper_1,,
