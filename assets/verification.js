@@ -128,7 +128,7 @@ const VerificationStudy = (() => {
         if (isRefinement || prior.length) {
             // Never mutate a refinement, even if the original assignment was control or failed.
             const probe = last?.candidates?.[last.selectedCandidateIndex]?.verification?.probe;
-            const originalJudgment = last?.verification?.original_judgment || prior[0]?.judgment || judgment;
+            const originalJudgment = probe?.original_judgment || last?.verification?.original_judgment || prior[0]?.judgment || judgment;
             const checks = probe ? await assessments(ctx, originalJudgment,
                 candidates.map((c, i) => ({ id: String(i), text: c.output, probe }))) : [];
             const study = { version: VERSION, status: 'refinement', new_injection: false,
@@ -149,7 +149,11 @@ const VerificationStudy = (() => {
 
         const data = journal(ctx);
         const slot = String(roundId);
-        if (!data.allocations[slot]) {
+        const allocation = data.allocations[slot];
+        // A reused round number after a restart is not necessarily the same
+        // judgment. Only genuine retries may reuse its allocation and batch ID.
+        if (!allocation || allocation.original_judgment !== judgment || allocation.judgment_num !== judgmentNum ||
+            allocation.paper_id !== ctx.task.paperId) {
             data.allocations[slot] = {
                 version: VERSION, batch_id: crypto.randomUUID(), ...draw(),
                 participant_id: ctx.token, paper_id: ctx.task.paperId, task_index: ctx.taskIndex,
