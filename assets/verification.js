@@ -146,6 +146,8 @@ const VerificationStudy = (() => {
                     original_judgment: judgment,
                     candidates: candidates.map((c, i) => ({ id: String(i), text: c.output })),
                 });
+                study.attempts = result.attempts;
+                study.injection_diagnostics = result.diagnostics || [];
                 if (result.status !== 'injected' || result.mutations?.length !== candidates.length) {
                     throw new Error(result.reason || 'Incomplete injection batch');
                 }
@@ -168,7 +170,6 @@ const VerificationStudy = (() => {
                     },
                 }));
                 study.status = 'injected';
-                study.attempts = result.attempts;
             } catch (error) {
                 study.status = 'injection_failed';
                 study.failure_reason = error.message;
