@@ -65,15 +65,36 @@ const VerificationStudy = (() => {
 
     function validateMutation(mutation, candidate, type) {
         if (!mutation || mutation.error_type !== type || mutation.original_text !== candidate.output ||
-            mutation.validation?.valid !== true || !mutation.before || !mutation.after || mutation.before === mutation.after) {
+            mutation.validation?.valid !== true || typeof mutation.before !== 'string' || typeof mutation.after !== 'string' || mutation.before === mutation.after) {
             throw new Error('Invalid verified mutation');
         }
         const span = mutation.original_span;
-        if (!Number.isInteger(span?.start) || span.start < 0 || span.end !== span.start + mutation.before.length ||
+        if (!Number.isInteger(span?.start) || span.start < 0 || span.end > candidate.output.length || span.end !== span.start + mutation.before.length ||
             candidate.output.slice(span.start, span.end) !== mutation.before ||
             mutation.displayed_text !== candidate.output.slice(0, span.start) + mutation.after + candidate.output.slice(span.end) ||
             mutation.displayed_span?.start !== span.start || mutation.displayed_span?.end !== span.start + mutation.after.length) {
             throw new Error('Mutation offsets do not match the displayed text');
+        }
+        if (mutation.edits !== undefined) {
+            if (!Array.isArray(mutation.edits) || !mutation.edits.length) throw new Error('Missing mutation edit records');
+            let reconstructed = '', cursor = 0, previousStart = -1;
+            for (const edit of mutation.edits) {
+                const start = edit.original_span?.start, end = edit.original_span?.end;
+                if (!['replace', 'insert'].includes(edit.kind) || !Number.isInteger(start) || !Number.isInteger(end) ||
+                    start < cursor || start === previousStart || end < start || end > candidate.output.length ||
+                    typeof edit.before !== 'string' || typeof edit.after !== 'string' || edit.before === edit.after ||
+                    candidate.output.slice(start, end) !== edit.before ||
+                    (edit.kind === 'insert' ? start !== end : start === end)) throw new Error('Invalid mutation edit record');
+                reconstructed += candidate.output.slice(cursor, start);
+                if (edit.displayed_span?.start !== reconstructed.length || edit.displayed_span?.end !== reconstructed.length + edit.after.length) {
+                    throw new Error('Mutation edit offsets do not match the displayed text');
+                }
+                reconstructed += edit.after;
+                cursor = end;
+                previousStart = start;
+            }
+            reconstructed += candidate.output.slice(cursor);
+            if (reconstructed !== mutation.displayed_text) throw new Error('Mutation edits do not reconstruct the displayed text');
         }
     }
 
@@ -147,6 +168,8 @@ const VerificationStudy = (() => {
                     candidates: candidates.map((c, i) => ({ id: String(i), text: c.output })),
                 });
                 study.attempts = result.attempts;
+                study.operation_version = result.operation_version || null;
+                study.failed_candidates = result.failed_candidates || [];
                 study.injection_diagnostics = result.diagnostics || [];
                 if (result.status !== 'injected' || result.mutations?.length !== candidates.length) {
                     throw new Error(result.reason || 'Incomplete injection batch');
