@@ -969,6 +969,8 @@ async function renderTask() {
         }
     }
 
+    VerificationStudy.restore(taskState.collabRounds || [], editor.value);
+
     // Start autosave
     startAutosave();
 }
@@ -1252,7 +1254,8 @@ async function handleGenerate() {
 
         // Store only slim candidates (without logprobs) in the repeatedly-saved state;
         // the full candidates are logged once in the 'generate' event below
-        const slimCandidates = stripCandidateLogprobs(candidates);
+        const studyBatch = await VerificationStudy.prepareBatch(candidates, rounds, currentJudgmentNum, judgment);
+        const slimCandidates = stripCandidateLogprobs(studyBatch.candidates);
 
         // Add new round with multiple candidates
         const newRound = {
@@ -1261,6 +1264,7 @@ async function handleGenerate() {
             judgment: judgment,
             textSnippet: textSnippet,
             candidates: slimCandidates,  // Array of {output, temperature, ...}
+            ...(studyBatch.study ? { verification: studyBatch.study } : {}),
             output: null,  // Will be set when user accepts a candidate
             selectedCandidateIndex: null,
             status: 'pending',
@@ -1455,6 +1459,7 @@ async function handleAcceptSelected() {
 
     // Append to final review
     const editor = document.getElementById('review-editor');
+    const reviewBeforeAccept = editor ? editor.value : '';
     if (editor) {
         const existingContent = editor.value.trim();
         if (existingContent) {
@@ -1463,6 +1468,8 @@ async function handleAcceptSelected() {
             editor.value = editedOutput;
         }
     }
+
+    VerificationStudy.recordAcceptance(pendingRound, editedOutput, reviewBeforeAccept, editor ? editor.value : '');
 
     await backend.saveState(AppState.currentToken, taskIndex, {
         collabRounds: rounds,
@@ -2257,7 +2264,8 @@ async function handleDynamicGenerate(feedbackId) {
 
         // Store only slim candidates (without logprobs) in the repeatedly-saved state;
         // the full candidates are logged once in the 'generate' event below
-        const slimCandidates = stripCandidateLogprobs(candidates);
+        const studyBatch = await VerificationStudy.prepareBatch(candidates, rounds, currentJudgmentNum, judgment, true);
+        const slimCandidates = stripCandidateLogprobs(studyBatch.candidates);
 
         // Add new round with multiple candidates
         const newRound = {
@@ -2266,6 +2274,7 @@ async function handleDynamicGenerate(feedbackId) {
             judgment: judgment,
             feedback: feedback,
             candidates: slimCandidates,
+            ...(studyBatch.study ? { verification: studyBatch.study } : {}),
             output: null,
             selectedCandidateIndex: null,
             status: 'pending',
@@ -2682,6 +2691,7 @@ async function handleDynamicAccept(expansionId) {
 
     // Append to final review
     const editor = document.getElementById('review-editor');
+    const reviewBeforeAccept = editor ? editor.value : '';
     if (editor) {
         const existingContent = editor.value.trim();
         if (existingContent) {
@@ -2690,6 +2700,8 @@ async function handleDynamicAccept(expansionId) {
             editor.value = editedOutput;
         }
     }
+
+    VerificationStudy.recordAcceptance(pendingRound, editedOutput, reviewBeforeAccept, editor ? editor.value : '');
 
     await backend.saveState(AppState.currentToken, taskIndex, {
         collabRounds: rounds,
@@ -3021,7 +3033,8 @@ async function handleRejectRound(roundId) {
 /**
  * Handle editor input
  */
-function handleEditorInput() {
+function handleEditorInput(event) {
+    VerificationStudy.captureEditor(event?.inputType || 'input');
     // Trigger autosave (delayed to avoid frequent saves)
     clearTimeout(window.autosaveTimeout);
     window.autosaveTimeout = setTimeout(() => {
@@ -3067,6 +3080,7 @@ async function autosaveDraft() {
     // Saving them from cached AppState.currentState can overwrite fresh
     // data due to race conditions.
     try {
+        await VerificationStudy.flushEdits();
         await backend.saveState(AppState.currentToken, taskIndex, {
             draftText,
             judgment
@@ -3165,12 +3179,16 @@ async function handleResumeWriting() {
  */
 async function handleSubmitReview() {
     const editor = document.getElementById('review-editor');
-    const reviewText = editor.value.trim();
+    let reviewText = editor.value.trim();
 
     if (!reviewText) {
         alert('Please enter a review before submitting');
         return;
     }
+
+    if (!(await VerificationStudy.beforeSubmit())) return;
+    reviewText = editor.value.trim();
+    if (!reviewText) return;
 
     if (!confirm('Are you sure you want to submit the review? You will not be able to modify it after submission.')) {
         return;
@@ -3193,11 +3211,14 @@ async function handleSubmitReview() {
     }
 
     try {
+        await VerificationStudy.finalize(reviewText);
         await backend.saveFinalReview(AppState.currentToken, taskIndex, reviewText, {
             taskStartTimestamp: taskState.taskStartTimestamp,
             writingStartTimestamp: taskState.writingStartTimestamp,
             submitTimestamp: timestamp
         });
+
+        await VerificationStudy.submissionSaved(reviewText);
 
         await backend.appendEvent({
             participant_token: AppState.currentToken,
@@ -3217,6 +3238,8 @@ async function handleSubmitReview() {
     } catch (error) {
         console.error('Submission failed:', error);
         alert('Submission failed. Please try again.');
+    } finally {
+        VerificationStudy.finishSubmission();
     }
 }
 

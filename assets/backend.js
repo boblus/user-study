@@ -232,6 +232,7 @@ class LocalStorageBackend extends DataBackend {
             participantToken: token,
             assignment,
             state,
+            verificationStudy: typeof VerificationStudy !== 'undefined' ? VerificationStudy.exportResults(state) : null,
             events
         };
     }
@@ -581,6 +582,7 @@ class SupabaseBackend extends DataBackend {
             participantToken: token,
             assignment,
             state,
+            verificationStudy: typeof VerificationStudy !== 'undefined' ? VerificationStudy.exportResults(state) : null,
             events: events || [],
             questionnaires: questionnaires || []
         };

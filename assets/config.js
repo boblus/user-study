@@ -11,6 +11,12 @@ const CONFIG = {
     
     // 后端类型: 'local' 或 'supabase'
     BACKEND_TYPE: 'supabase',
+
+    // Controlled-error study (deploy verification-probe before enabling in production).
+    VERIFICATION_ENABLED: true,
+    get VERIFICATION_FUNCTION_URL() {
+        return `${this.SUPABASE_URL}/functions/v1/verification-probe`;
+    },
     
     // Edge Function URL (自动基于 SUPABASE_URL 生成)
     get EDGE_FUNCTION_URL() {
