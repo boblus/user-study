@@ -1,9 +1,9 @@
 // Pure validation shared by the Edge Function and the study tests.
-export const ERROR_TYPES = ['obvious', 'subtle', 'judgment_shift'];
-export const OPERATION_VERSION = 'verification-operations-v3';
+export const ERROR_TYPES = ['factual_error', 'judgment_shift'];
+export const OPERATION_VERSION = 'verification-operations-v4';
 export const OPERATIONS = {
-    obvious: ['reference_mismatch', 'quotation_corruption', 'numeric_replacement'],
-    subtle: ['certainty_upgrade', 'scope_expansion', 'evidence_upgrade'],
+    factual_error: ['reference_mismatch', 'quotation_corruption', 'numeric_replacement',
+        'certainty_upgrade', 'scope_expansion', 'evidence_upgrade'],
     judgment_shift: ['polarity_reversal', 'focus_shift', 'severity_shift'],
 };
 

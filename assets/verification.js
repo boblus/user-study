@@ -1,7 +1,7 @@
 /* Controlled-error study. All changes are opt-in and scoped to collab tasks. */
 const VerificationStudy = (() => {
     const VERSION = 'verification-v1';
-    const TYPES = ['obvious', 'subtle', 'judgment_shift'];
+    const TYPES = ['factual_error', 'judgment_shift'];
     const journals = new Map();
     let submitting = false;
     let submissionLock = null;
@@ -49,7 +49,7 @@ const VerificationStudy = (() => {
         return value[0] / 4294967296;
     }) {
         const inject = random() < 0.5;
-        return { assigned_injection: inject, error_type: inject ? TYPES[Math.floor(random() * 3)] : null };
+        return { assigned_injection: inject, error_type: inject ? TYPES[Math.floor(random() * TYPES.length)] : null };
     }
 
     async function request(body) {
@@ -126,14 +126,16 @@ const VerificationStudy = (() => {
         const slot = String(roundId);
         const allocation = data.allocations[slot];
         // A reused round number after a restart is not necessarily the same
-        // judgment. Only genuine retries may reuse its allocation and batch ID.
+        // judgment. Only retries under the current category probabilities reuse
+        // an allocation; saved rounds and their original assignments stay intact.
         if (!allocation || allocation.original_judgment !== judgment || allocation.judgment_num !== judgmentNum ||
-            allocation.paper_id !== ctx.task.paperId) {
+            allocation.paper_id !== ctx.task.paperId || allocation.type_probability !== 1 / TYPES.length ||
+            (allocation.assigned_injection && !TYPES.includes(allocation.error_type))) {
             data.allocations[slot] = {
                 version: VERSION, batch_id: crypto.randomUUID(), ...draw(),
                 participant_id: ctx.token, paper_id: ctx.task.paperId, task_index: ctx.taskIndex,
                 original_judgment: judgment, judgment_num: judgmentNum,
-                allocated_at: now(), injection_probability: 0.5, type_probability: 1 / 3,
+                allocated_at: now(), injection_probability: 0.5, type_probability: 1 / TYPES.length,
             };
             persist(data); // A retry never rerolls the assignment.
         }
