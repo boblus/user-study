@@ -1,14 +1,4 @@
 email,participant_id,task_1,task_1_paper,paper_title,submission_id
-,se01,collab,paper_1,,3482
-,se02,collab,paper_2,,6444
-,se03,collab,paper_3,,2955
-,se04,collab,paper_4,,4557
-,se05,collab,paper_5,,5992
-,se06,collab,paper_6,,3456
-,fa01,collab,paper_7,,3107
-,fa02,collab,paper_8,,2158
-,fa03,collab,paper_9,,1268
-,fa04,collab,paper_10,,2242
-,fa05,collab,paper_11,,4193
-,fa06,collab,paper_12,,4459
-,test,collab,paper_1,,
+,da01,collab,4729_Spurious_Correlations_and,,
+,ma01,collab,7912_Can_LLMs_Generate_High_Qu,,
+,test,collab,4729_Spurious_Correlations_and,,
