@@ -1,4 +1,8 @@
 email,participant_id,task_1,task_1_paper,paper_title,submission_id
 ,da01,collab,4729_Spurious_Correlations_and,,
 ,ma01,collab,7912_Can_LLMs_Generate_High_Qu,,
+,mh01,collab,2437_Limited_Resource_Adapters,,
+,he01,collab,6927_Do_Multimodal_Large_Langu,,
+,mo01,collab,1734_FEAT_A_Preference_Feedbac,,
+,de01,collab,4175_On_the_Robustness_of_RAG_,,
 ,test,collab,4729_Spurious_Correlations_and,,
